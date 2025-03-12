@@ -1,23 +1,102 @@
 project:
-  type: book
+  type: flandersqmd-book
+  preview:
+    port: 4201
+    browser: true
+  render:
+    - "*.md"
+    - "*.qmd"
+    - "!LICENSE.md" #ignore LICENSE.md
+    - "!README.md" #ignore README.md
+  output-dir: output
 
 book:
-  title: "prj_crosscase_analyse_ESD"
-  author: "Norah Jones"
-  date: "6/3/2025"
   chapters:
     - index.qmd
     - intro.qmd
     - summary.qmd
+    - data_verkenning.qmd
     - references.qmd
+  downloads: pdf
+  open-graph: true
+  sidebar:
+    logo: cover.png
+  body-footer: '{{< footer >}}'
+  navbar:
+    left:
+      - text: Cover
+        file: index.md
+    right:
+      - icon: mastodon
+        href: https://mastodon.online/@inbo
+      - icon: facebook
+        href: https://www.facebook.com/INBOVlaanderen/
+      - icon: github
+        menu:
+          - text: Source Code
+            url:  https://github.com/inbo
+          - text: Report a Bug
+            url:  https://github.com/inbo
+    pinned: true
 
 bibliography: references.bib
 
 format:
-  html:
-    theme: cosmo
-  pdf:
-    documentclass: scrreprt
+  flandersqmd-book-html: default
+  flandersqmd-book-pdf: default
+
+flandersqmd:
+  entity: INBO
+  level: 2
+  title: Analyserapport crosscase analyse Ecosysteemdiensten
+  subtitle: Vergelijking waardering ecosysteemdiensten in natuurherstelprojecten
+  author:
+    - name:
+        given: Pieter
+        family: Verschelde
+      email: pieter.verschelde@inbo.be
+      corresponding: true
+      orcid: 0000-0002-9199-421X
+      affiliation:
+        - INBO
+    - name:
+        given: Raïsa
+        family: Carmen
+      email: raisa.carmen@inbo.be
+      corresponding: false
+      orcid: 0000-0003-1025-8702
+      affiliation:
+        - INBO
+  reviewer:
+    - name:
+        given: Francis
+        family: Turkelboom
+      email: francis.turkelboom@inbo.be
+      orcid: 0000-0002-6317-9808
+      affiliation:
+        -  INBO
+  year: 2025
+  reportnr: 0.1
+  cover: cover.pdf
+  coverphoto: https://www.pexels.com/nl-nl/foto/hout-natuur-rood-creatief-4599227
+  coverdescription: Detail of a leaf. Photo by [Skyler Ewing](https://www.pexels.com/nl-nl/@skyler-ewing-266953?utm_content=attributionCopyText&utm_medium=referral&utm_source=pexels) via [Pexels](https://www.pexels.com/nl-nl/foto/hout-natuur-rood-creatief-4599227/?utm_content=attributionCopyText&utm_medium=referral&utm_source=pexels)
+  watermark: Work in progress
+  public_report: false
+  colophon: true
+  client:
+    - INBO Brussel
+    - VAC Brussel ‐ Herman Teirlinck
+    - Havenlaan 88 bus 73
+    - 1000 Brussel
+  clienturl: https://www.vlaanderen.be/inbo/en-gb
+  clientlogo: logo.jpg
+  cooperation:
+    - INBO Brussel
+    - VAC Brussel ‐ Herman Teirlinck
+    - Havenlaan 88 bus 73
+    - 1000 Brussel
+  cooperationurl: https://www.vlaanderen.be/inbo/en-gb
+  cooperationlogo: logo.jpg
 
 editor: visual
 

@@ -1,0 +1,42 @@
+﻿ess_cluster;ess_common;ess_short;ess_order;remark
+Bio-production;Agricultural production;agri produce;1;
+Bio-production;Bio-based materials;bio materials;2;
+Bio-production;Food & feed production;food & feed;3;
+Bio-production;Home gardening & hobby animals;gardening;4;
+Bio-production;Regional products;regio produce;5;
+Bio-production;Regulation of soil fertility;soil fertility;6;
+Bio-production;Renewable energy;green energy;7;
+Bio-production;Water extraction for agriculture;agri water;8;
+Bio-production;Wood & fibre production;wood produce;9;
+Climate service;Macro-Climate regulation;macro climate;10;
+Cultural, social & aesthetic values;Aesthetic value;aesthetics;11;
+Cultural, social & aesthetic values;Creative activities & inspiration;inspiration;12;
+Cultural, social & aesthetic values;Cultural & regional identity;culture;13;
+Cultural, social & aesthetic values;Education, knowledge & nature observation;education;14;
+Cultural, social & aesthetic values;Nature & spiritual experience and therapeutic effect;spiritual;15;
+Cultural, social & aesthetic values;Space for social cohesion;social cohesion;16;
+Fibre & Bioenergy;Renewable energy;green energy;;duplicate
+Fibre & Bioenergy;Wood & fibre production;wood production;;duplicate
+Food & feed production;Regional products;regional products;;duplicate
+Habitat & Biodiversity;Biodiversity & habitat;biodiversity;20;
+Habitat & Biodiversity;Iconic species;iconic species;21;
+Habitat & Biodiversity;Pest and disease control for agriculture;pest control;22;
+Habitat & Biodiversity;Pollination;pollination;23;
+Water cycle related services;Regulation of hydrological cycle and protection against drought;drought;;duplicate
+Quality of living;Drinking water;drinking;25;
+Quality of living;Mediation of noise and visual pollution;pollution;26;
+Quality of living;Micro-Climate regulation;micro climate;27;
+Quality of living;Quality of living/working environment;quality of living;28;
+Quality of living;Regulation of air quality;air quality;29;
+Recreation & Tourism;Dynamic recreation;dynamic r&r;30;
+Recreation & Tourism;Motorised recreation;motorised r&r;31;
+Recreation & Tourism;Soft recreation;soft r&r;32;
+Recreation & Tourism;Space for play & rest;play;33;
+Recreation & Tourism;Tourism;tourism;34;
+Water cycle related services;Protection against flooding risk;flooding;35;
+Water cycle related services;Regulation of erosion risk;erosion;36;
+Water cycle related services;Regulation of hydrological cycle and protection against drought;drought;37;duplicate
+Water cycle related services;Regulation of water quality;water quality;38;
+Wild food harvest;Fishery;fishery;39;
+Wild food harvest;Hunting;hunting;40;
+Wild food harvest;Wild food picking and medicinal plants;plant gathering;41;

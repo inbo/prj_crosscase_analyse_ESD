@@ -1,3 +1,5 @@
+{{< colophon >}}
+
 # Preface {.unnumbered}
 
 This is a Quarto book.
@@ -7,3 +9,6 @@ To learn more about Quarto books visit <https://quarto.org/docs/books>.
 ```{r}
 1 + 1
 ```
+
+{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
