@@ -3,13 +3,15 @@
 ```{=html}
 <!--
 vragen aan Francis:
-* Hoe food&feed beter categoriseren
+* Hoe food&feed beter categoriseren --> zelf nakijken
 * ok om in data cluster voor kluisbos de NA te vervangen door water cycle related services?
 * ok om gemiddelde unieke score te gebruiken voor de common score?
 
 to do:
-* vragen zijn nu puur op data beantwoord
+* vragen zijn nu puur op data beantwoord --> modelmatig
 * omzetten naar een model (eventueel hurdle model zoals in thesis)
+* afronding aanpassen naar mail
+* nakijken clustering vergelijken met definities in Data (zelfde excel file)
 -->
 ```
 
@@ -25,12 +27,44 @@ Alle cases worden herleid op ess_common niveau door een gewogen gemiddelde te pa
 
 In de analyse (later misschien komt er meer) zal geen rekening gehouden worden met het respondent-effect.
 
+## Vergelijking categorisering en ruwe data
+
+De categorieën in de data zijn vergeleken met de categorisering in de data van de ESS. Deze komen niet volledig overeen, maar de verschillen zijn niet groot:
+
+- Er wordt een categorie "Bio-production" gebruikt in de data, die de categorieën "Food & feed production" en "Wood & fibre production" samenvoegt.
+- Er zijn enkele verschillen in het gebruik van hoofdletters en spaties, maar de categorieën komen overeen.
+- In de categorisering wordt vaak tussen haakjes nog extra informatie gegeven die in de data niet voorkomt, zoals bv "Fishery" en "Fishery (recreative & professional)".
+
+Er is gekozen de categorisering in de data te gebruiken en niet deze in het tabblad rond categorisering van de Excel file omdat het makkelijker is om te werken met de kortere namen.
+
 ```{r import}
 #| message: false
 #| warning: false
 #| results: hide
 library(tidyverse)
 library(readxl)
+
+#BELANGRIJK: te incorporeren
+# (0,6) en 0,75  -> 1
+# (1,2) en 1,5 en (1,8) -> 2  
+# 2,25 en (2,4) -> 3
+# 
+# Recreation and Tourism (met grote T)
+# Food & feed + Fibre & Bio-energy -> Bio-production
+
+# vragen aan Francis:
+# * Hoe food&feed beter categoriseren --> zelf nakijken
+# * ok om in data cluster voor kluisbos de NA te vervangen door water cycle related services?
+# * ok om gemiddelde unieke score te gebruiken voor de common score?
+# 
+# to do Pieter:
+# * vragen zijn nu puur op data beantwoord --> modelmatig
+# * omzetten naar een model (eventueel hurdle model zoals in thesis)
+# * afronding aanpassen naar mail
+# * nakijken clustering vergelijken met definities in Data (zelfde excel file als data)
+
+
+
 
 # read data
 ess_interpretation <- read_csv2("data/ess_overview.csv",
@@ -39,6 +73,8 @@ case_def <- read_csv2("data/case_definition.csv",
                       show_col_types = FALSE)
 
 xlspath <- "G:\\Mijn Drive\\PROJECTEN\\prj_crosscase_analyse_ESD"
+
+#Inlezen van de data
 data_raw <- 
   read_excel(file.path(xlspath,
                        "data",
@@ -46,23 +82,85 @@ data_raw <-
                         sheet = "Data",
                         range = "A1:G6216") |> 
   #replace missing Cluster value for Kluisbos
-  replace_na(list(Cluster = "Water cycle related services")) 
+  replace_na(list(Cluster = "Water cycle related services")) |> 
+  rename(case = "Case",
+         respondent = "Respondent",
+         ess_cluster = "Cluster",
+         ess_common = "ESD_common",
+         ess_unique = "ESD_uniek",
+         score_original = "Score_uniek",
+         score = "Score") |> 
+  mutate(ess_common = ifelse(ess_common %in%  c("Food & feed production",
+                                                "Wood & fibre production"),
+                              "Bio-production",
+                              ess_common),
+         ess_cluster = ifelse(ess_cluster == "Recreation & tourism",
+                              "Recreation & Tourism",
+                              ess_cluster), 
+         score = ceiling(score)) 
+
+#Inlezen gedefinieerde categorisering van de ESS
+data_cat_orig <- 
+  read_excel(file.path(xlspath,
+                       "data",
+                       "ESD cases_Primary data_18dec2024.xlsx"),
+             sheet = "Classificatie van ESD") |> 
+  rename(ess_cluster = "ESD Cluster (bottom-up)",
+         ess_common = "Subgroup",
+         ess_std = "ESD gestandariseerde namen")
+
+data_cat <- data_cat_orig |> 
+  fill(names(data_cat_orig)[1:2], .direction = "down") |> 
+  mutate(ess_std = ifelse(is.na(ess_std), ess_common, ess_std),
+         ess_std = ifelse(ess_std %in% c("Wood & fibre production", "Food & feed production"),
+                              "Bio-production",
+                              ess_std),
+         ess_cluster = ifelse(ess_cluster == "Cultural, social & esthetic values",
+                              "Cultural, social & aesthetic values",
+                              ess_cluster),
+         ess_cluster = ifelse(ess_cluster == "Recreation & tourism",
+                              "Recreation & Tourism",
+                              ess_cluster))
+
+data_cat_wide <- data_cat |> 
+  pivot_longer(cols = -c(ess_cluster, ess_common, ess_std),
+               names_to = "ess_unique",
+               values_to = "ess_short") |> 
+  filter(!is.na(ess_short))
+
+# check if the categorization in data_cat matches with data_raw
+
+data_cat_clusters <- sort(unique(data_cat_wide$ess_cluster))
+
+data_cat_uniques <- c(sort(unique(data_cat_wide$ess_std)), rep(NA,5))
+data_raw_uniques <- c(sort(unique(data_raw$ess_common)), rep(NA, 5))
+
+cbind(cat = sort(unique(data_cat_wide$ess_cluster)), 
+      dat = sort(unique(data_raw$ess_cluster))) |> 
+  as.data.frame() |> 
+  mutate(equal = cat == dat)
+
+cbind(cat = data_cat_uniques, dat = data_raw_uniques) |> 
+  as.data.frame() |> 
+  mutate(equal = cat == dat) |> view()
+
 
 data_orig <- data_raw |>
   rename_with(tolower) |> 
-  select(case, respondent, ess_unique = esd_uniek, 
-         ess_common = esd_common, ess_cluster = cluster, 
-         score_original = score_uniek, score) |>
+  select(case, respondent, ess_unique, 
+         ess_common, ess_cluster, 
+         score_original, score) |>
   mutate(f_score = factor(round(score)),
          ess_cluster = ifelse(ess_cluster == "Recreation & tourism",
                               "Recreation & Tourism", 
                               ess_cluster)) |>
-  inner_join(ess_interpretation |>
+  left_join(ess_interpretation |>
                filter(!is.na(ess_order)) |> 
                select(-ess_cluster), by = "ess_common") |> 
   mutate(ess_common = reorder(ess_common, ess_order)) |> 
   inner_join(case_def, by = "case")
 
+any(is.na(data_orig$ess_short)) # check if there are any NA values in ess_short))
 
 data_smry <- data_orig |>
   group_by(case, ess_cluster, ess_common, ess_unique, ess_short, f_score) |>
@@ -175,19 +273,19 @@ tb_common <- data_orig |>
   group_by(case, ess_cluster, ess_common, ess_short, ess_unique) |>
   summarise(n_resp = n(), .groups = "drop_last") |> 
   summarise(n_resp = max(n_resp), .groups = "drop",
-             n_esd_unique = n())
+             n_ess_unique = n())
 
 tb_cluster <- tb_common |> 
   group_by(case, ess_cluster) |>
   summarise(max_n_resp = max(n_resp),
             min_n_resp = min(n_resp),
-            n_esd_common = n(), 
-            n_esd_unique = sum(n_esd_unique),
+            n_ess_common = n(), 
+            n_ess_unique = sum(n_ess_unique),
             .groups = "drop") |> 
-  mutate(total_unique = sum(n_esd_unique),
-         total_common = sum(n_esd_common),
-         fr_unique = n_esd_unique / total_unique,
-         fr_common = n_esd_common / total_common,
+  mutate(total_unique = sum(n_ess_unique),
+         total_common = sum(n_ess_common),
+         fr_unique = n_ess_unique / total_unique,
+         fr_common = n_ess_common / total_common,
          .by = c(case)) 
 
 ggplot(tb_cluster, aes(x = case, y = fr_common, fill = ess_cluster)) +
