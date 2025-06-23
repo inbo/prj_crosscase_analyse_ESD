@@ -69,6 +69,243 @@ data_cum <- data_ana |>
 
 ```
 
+## Analyses op dataset zelf
+
+
+### similariteitsprofiel
+
+```{r similarity}
+library(cluster)
+library(dplyr)
+
+
+
+# Assuming your data is in long format: region, instance, person, score
+# First reshape to get mean scores by region and instance
+case_profiles <- data_ana %>%
+  group_by(case, ess_short) %>%
+  summarise(mean_score = mean(score, na.rm = TRUE), .groups = 'drop') %>%
+  pivot_wider(names_from = ess_short, values_from = mean_score)
+
+# Create matrix with regions as rows, instances as columns
+profile_matrix <- as.matrix(case_profiles[, -1])
+rownames(profile_matrix) <- case_profiles$case
+
+col_means <- colMeans(profile_matrix, na.rm = TRUE)
+profile_detrended <- sweep(profile_matrix, 2, col_means, "-")
+profile_detrended[is.na(profile_detrended)] <- 0 # Replace NA with 0 for distance calculation
+
+# Calculate similarity/distance matrix
+similarity_matrix <- 1 - as.matrix(dist(profile_detrended, method = "euclidean")) / max(dist(profile_detrended, method = "euclidean"))
+
+
+library(corrplot)
+library(pheatmap)
+
+pheatmap(similarity_matrix,
+         clustering_distance_rows = "euclidean",
+         clustering_distance_cols = "euclidean",
+         color = colorRampPalette(c("red", "white", "blue"))(100),
+         main = "Regional Similarity Matrix")
+
+
+#Nu eens omgekeerd
+profile_matrix_t <- t(profile_matrix)
+col_means <- colMeans(profile_matrix_t, na.rm = TRUE)
+profile_detrended_t <- sweep(profile_matrix_t, 2, col_means, "-")
+profile_detrended_t[is.na(profile_detrended_t)] <- 0 # Replace NA with 0 for distance calculation
+
+similarity_matrix_t <- 1 - as.matrix(dist(profile_detrended_t, method = "euclidean")) / max(dist(profile_detrended_t, method = "euclidean"))
+
+pheatmap(similarity_matrix_t,
+         clustering_distance_rows = "euclidean",
+         clustering_distance_cols = "euclidean",
+         color = colorRampPalette(c("red", "white", "blue"))(100),
+         main = "Regional Similarity Matrix")
+
+
+
+
+library(igraph)
+library(ggraph)
+
+# Create network from high similarities (threshold = 0.6, adjust as needed)
+network_matrix <- similarity_matrix
+network_matrix[network_matrix < 0.3] <- 0
+diag(network_matrix) <- 0
+
+# Create network
+network <- graph_from_adjacency_matrix(network_matrix, 
+                                     weighted = TRUE, 
+                                     mode = "undirected")
+
+# Network plot
+ggraph(network, layout = "fr") + 
+  geom_edge_link(aes(width = weight, alpha = weight)) +
+  geom_node_point(size = 4, color = "steelblue") +
+  geom_node_text(aes(label = name), repel = TRUE, size = 3) +
+  scale_edge_width(range = c(0.5, 3)) +
+  theme_void() +
+  labs(title = "Regional Similarity Network")
+
+
+mds <- cmdscale(1 - similarity_matrix, k = 2)
+mds_df <- data.frame(
+  region = rownames(similarity_matrix),
+  MDS1 = mds[, 1],
+  MDS2 = mds[, 2]
+)
+
+# Plot MDS
+ggplot(mds_df, aes(x = MDS1, y = MDS2, label = region)) +
+  geom_point(size = 3, color = "steelblue") +
+  geom_text(hjust = 0, vjust = 0, nudge_x = 0.05, nudge_y = 0.05) +
+  theme_minimal() +
+  labs(title = "Regional Similarity - MDS Plot",
+       x = "Dimension 1", y = "Dimension 2")
+
+
+
+# Summary statistics
+summary_stats <- data.frame(
+  region = rownames(similarity_matrix),
+  mean_similarity = rowMeans(similarity_matrix, na.rm = TRUE),
+  max_similarity = apply(similarity_matrix, 1, function(x) max(x[x != 1], na.rm = TRUE)),
+  min_similarity = apply(similarity_matrix, 1, min, na.rm = TRUE)
+)
+
+print(summary_stats)
+
+# Find most similar pairs
+similarity_pairs <- which(similarity_matrix > quantile(similarity_matrix[upper.tri(similarity_matrix)], 0.7), 
+                         arr.ind = TRUE)
+similar_regions <- data.frame(
+  region1 = rownames(similarity_matrix)[similarity_pairs[,1]],
+  region2 = colnames(similarity_matrix)[similarity_pairs[,2]],
+  similarity = similarity_matrix[similarity_pairs]) |> 
+    filter(region1 < region2) |> 
+  arrange(desc(similarity))
+print(similar_regions)
+
+
+
+
+
+analyze_similarity_matrix <- function(sim_matrix, threshold = 0.6) {
+  
+  # 1. Basic stats
+  cat("Similarity Matrix Analysis\n")
+  cat("=========================\n")
+  cat("Mean similarity:", round(mean(sim_matrix[upper.tri(sim_matrix)]), 3), "\n")
+  cat("Range:", round(range(sim_matrix[upper.tri(sim_matrix)]), 3), "\n\n")
+  
+  # 2. Most similar regions
+  max_sim <- which(sim_matrix == max(sim_matrix[sim_matrix < 1]), arr.ind = TRUE)[1,]
+  cat("Most similar regions:", rownames(sim_matrix)[max_sim[1]], "and", 
+      colnames(sim_matrix)[max_sim[2]], 
+      "(similarity =", round(sim_matrix[max_sim[1], max_sim[2]], 3), ")\n\n")
+  
+  # 3. Clustering
+  hc <- hclust(as.dist(1 - sim_matrix), method = "ward.D2")
+  clusters <- cutree(hc, k = 3)
+  
+  cat("Cluster assignments:\n")
+  for(i in 1:3) {
+    cat("Cluster", i, ":", names(clusters)[clusters == i], "\n")
+  }
+  
+  # Return useful objects
+  list(
+    clusters = clusters,
+    hclust = hc,
+    summary_stats = data.frame(
+      region = rownames(sim_matrix),
+      mean_sim = rowMeans(sim_matrix),
+      cluster = clusters
+    )
+  )
+}
+
+# Use the function
+results <- analyze_similarity_matrix(similarity_matrix)
+plot(results$hclust)
+
+```
+
+
+### Consensus
+
+Hoe de mensen een ecosysteemdienst  waarderen, is niet voor iedere case dezelfde en verschilt ook van respondent tot respondent. We kunnen de overeenstemming tussen respondenten binnen een case bekijken door de Leik's agreement score te berekenen. Deze score geeft aan hoe goed de respondenten het eens zijn over de waardering van een ecosysteemdienst.
+
+De keuze is gevallen op de Leik score omdat deze score goed werkt voor ordinale data en de scores van -1 tot 3 zijn ordinaal. De Leik score is een maat voor de overeenstemming tussen respondenten, waarbij 0 betekent dat er geen overeenstemming is en 1 betekent dat er volledige overeenstemming is. 
+
+Dus als iedereen dezelfde score geeft, is de Leik score 1. Als de helft het minimum als score geeft en de andere helft het maximum, is de Leik score 0. De Leik score zal het beoordelen van naburige scores minder sterk afstraffen dan als de klasses verder uiteen liggen. Een Leik score van 0.5 krijg je bijvoorbeeld als de helft de tweede en de andere helft de vierde score geeft in een scoresysteem met 5 klassen.
+
+```{r Leik_agreement}
+#| caption: "Leik's Agreement Scores for ESS Common"
+mat <- rbind(c(0,0,20,0,0),
+             c(0,5,10,5,0),
+             c(0,10,10,0,0),
+             c(0,7,7,7,0),
+             c(0,10,0,10,0),
+             c(7,0,7,0,7),
+             c(10,0,0,0,10))
+colnames(mat) <- c(-1, 0, 1, 2, 3)
+mat <- bind_cols(mat, Leikscore = apply(mat, 1, function(x) 1 - agrmt::Leik(x)))
+knitr::kable(mat, digits = 2)
+
+```
+
+
+```{r agreement_general} 
+#NAKIJKEN waarom in kluis dynamic r&r en anderen een score groter dan 1 geven
+data_agree <- data_ana |> 
+  group_by(ess_short, cluster_short, score, case) |> 
+  summarise(n_respondents = n(), .groups = "drop_last") |> 
+  summarise(n_respondents = mean(n_respondents, .groups = "drop")) 
+
+data_agree_case <- data_ana |> 
+  group_by(ess_short, cluster_short, score, case) |> 
+  summarise(n_respondents = n(), .groups = "drop") 
+
+
+
+data_consensus_case <- data_agree_case |>
+  group_by(ess_short, cluster_short, case) |>
+  arrange(score) |>
+  mutate(ess_short = factor(ess_short, levels = ess_short_ordered)) |> 
+  summarise(agreement = 1 - Leik(n_respondents), .groups = "drop")
+
+data_consensus <- data_agree |>
+  group_by(ess_short, cluster_short) |>
+  arrange(score) |>
+  mutate(ess_short = factor(ess_short, levels = ess_short_ordered)) |> 
+  summarise(agreement = 1 - Leik(n_respondents), .groups = "drop")
+
+
+ggplot(data_consensus, aes(x = ess_short, y = agreement, color = cluster_short)) +
+  geom_point() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  scale_color_manual(values = inbo_palette) +
+  labs(title = "Agreement Scores by ESS Common", x = "ESS Common", y = "Agreement Score")
+
+
+ggplot(data_consensus_case, aes(x = ess_short, y = agreement, color = cluster_short)) +
+  geom_point() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  scale_color_manual(values = inbo_palette) +
+  labs(title = "Agreement Scores by ESS Common", x = "ESS Common", y = "Agreement Score") +
+  facet_wrap(~case)
+
+
+
+
+
+
+
+```
+
+
 
 ## Modellen zonder respondent-level informatie
 
@@ -88,6 +325,11 @@ De reden voor een bayesiaanse schatting is dat we de onzekerheid en predicties r
 #| echo: true
 # aggregated_summary_data has one row per ess_common per case
 # sigma on estimates modelled to n_respondents (variance: sig2/n -> sigma ~ 1/sqrt(n))
+conflicted::conflict_prefer_all(c("dplyr"), quiet = TRUE)
+conflicted::conflict_prefer_all(c("purrr"), quiet = TRUE)
+conflicted::conflict_prefer_all(c("tidyr"), quiet = TRUE)
+conflicted::conflict_prefer_all(c("brms"), quiet = TRUE)
+
 model_simpmeans <- brm(
   mean_score | weights(n_respondents) ~ 0 + ess_short + (1 | case),
   data = data_agg,
@@ -154,6 +396,56 @@ ggplot(coeftable, aes(x = ess_short, y = Estimate, color = cluster_short)) +
        color = "Cluster") +
   scale_color_manual(values = inbo_palette)
 
+
+
+
+#introduceer de agreement as sizes
+coeftable_consensus <- coeftable |> 
+  left_join(data_consensus |> 
+              select(ess_short, cluster_short, agreement), 
+            by = c("ess_short" = "ess_short", "cluster_short" = "cluster_short"))
+
+
+ggplot(coeftable_consensus, aes(x = ess_short, y = Estimate, color = agreement)) +
+  geom_point(aes(size = agreement), alpha = 1) +
+  geom_errorbar(aes(ymin = Q2.5, ymax = Q97.5)) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  labs(title = "Estimated Effects of ESS Common colored en resized with Agreement",
+       x = "ESS Common",
+       y = "Estimated Effect",
+       color = "Agreement", 
+       size = "Agreement") +
+  #scale_color_manual(values = inbo_palette) + 
+  scale_color_gradient(low = "cyan", high = "blue") +
+  scale_size_continuous(range = c(2, 8))
+
+
+
+
+newdata <- data_agg |> 
+  transmute(ess_short, cluster_short, case) |>
+  distinct() |> 
+  mutate(rownr = row_number())
+
+coeftable_case <- fitted(model_simpmeans, newdata = newdata, summary = TRUE) |> 
+  as.data.frame() |> 
+  mutate(ess_short = factor(newdata |> pull(ess_short), levels = ess_short_ordered),
+         cluster_short = newdata |> pull(cluster_short),
+         case = newdata |> pull(case)) |> 
+  left_join(data_consensus_case |> 
+              select(ess_short, cluster_short, case, agreement), 
+            by = c("ess_short" = "ess_short", "cluster_short" = "cluster_short", "case" = "case"))
+
+ggplot(coeftable_case, aes(x = ess_short, y = Estimate, ymin = Q2.5, ymax = Q97.5, color = agreement)) +
+  geom_point() +
+  geom_errorbar() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  scale_color_gradient(low = "cyan", high = "blue") +
+  labs(title = "Estimated Effects of ESS Common per Case, colored by agreement",
+       x = "ESS Common",
+       y = "Estimated Effect") +
+  facet_wrap(~case, nrow = 3)
+
 ```
 
 
@@ -175,45 +467,6 @@ ggplot(ranef_case, aes(x = case, y = Estimate, ymin = Q2.5, ymax = Q97.5)) +
   labs(title = "Random Effects for Cases", x = "Case", y = "Random Effect Estimate")
 
 ```
-
-Hoe de mensen een ecosysteemdienst  waarderen, is niet voor iedere case dezelfde en verschilt ook van respondent tot respondent. We kunnen de overeenstemming tussen respondenten binnen een case bekijken door de Leik's agreement score te berekenen. Deze score geeft aan hoe goed de respondenten het eens zijn over de waardering van een ecosysteemdienst.
-
-De keuze is gevallen op de Leik score omdat deze score goed werkt voor ordinale data en de scores van -1 tot 3 zijn ordinaal. De Leik score is een maat voor de overeenstemming tussen respondenten, waarbij 0 betekent dat er geen overeenstemming is en 1 betekent dat er volledige overeenstemming is. 
-
-Dus als iedereen dezelfde score geeft, is de Leik score 1. Als de helft het minimum als score geeft en de andere helft het maximum, is de Leik score 0. De Leik score zal het beoordelen van naburige scores minder sterk afstraffen dan als de klasses verder uiteen liggen. Een Leik score van 0.5 krijg je bijvoorbeeld als de helft de tweede en de andere helft de vierde score geeft in een scoresysteem met 5 klassen.
-
-```{r Leik_agreement}
-#| caption: "Leik's Agreement Scores for ESS Common"
-mat <- rbind(c(0,0,20,0,0),
-             c(0,5,10,5,0),
-             c(0,10,10,0,0),
-             c(0,7,7,7,0),
-             c(0,10,0,10,0),
-             c(7,0,7,0,7),
-             c(10,0,0,0,10))
-colnames(mat) <- c(-1, 0, 1, 2, 3)
-mat <- bind_cols(mat, Leikscore = apply(mat, 1, function(x) 1 - agrmt::Leik(x)))
-knitr::kable(mat, digits = 2)
-
-```
-
-
-```{r agreement_general} 
-#NAKIJKEN waarom in kluis dynamic r&r en anderen een score groter dan 1 geven
-data_agree <- data_ana |> 
-  group_by(ess_short, cluster_short, case) |> 
-  summarise(agreement = 1 - agrmt::Leik(score), .groups = "drop") |> 
-  mutate(ess_short = factor(ess_short, levels = ess_short_ordered))
-
-ggplot(data_agree, aes(x = ess_short, y = agreement, color = cluster_short)) +
-  geom_point() +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
-  scale_color_manual(values = inbo_palette) +
-  labs(title = "Agreement Scores by ESS Common", x = "ESS Common", y = "Agreement Score") +
-  facet_wrap(~case)
-
-```
-
 
 
 ### Cumulatief logistisch model
@@ -467,6 +720,9 @@ ggplot(plotdata_case, aes(x = ess_short, y = avg, color = cluster_short, size = 
   facet_wrap(~case)
 
 ```
+
+
+
 
 
 
