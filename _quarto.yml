@@ -43,7 +43,8 @@ book:
 bibliography: references.bib
 
 format:
-  flandersqmd-book-html: default
+  flandersqmd-book-html:
+    code-fold: true
   flandersqmd-book-pdf: default
 
 flandersqmd:

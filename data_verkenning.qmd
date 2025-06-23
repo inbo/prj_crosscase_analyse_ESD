@@ -158,7 +158,13 @@ data_orig <- data_raw |>
                filter(!is.na(ess_order)) |> 
                select(-ess_cluster), by = "ess_common") |> 
   mutate(ess_common = reorder(ess_common, ess_order)) |> 
-  inner_join(case_def, by = "case")
+  inner_join(case_def, by = "case") |> 
+  mutate(survey_type = ifelse(substring(case, 1, 8) %in% c("De Wijer", "Gelinden"),
+                                "anonymous",
+                                "individual"))
+
+readr::write_csv2(data_orig, file = "interim/data_orig.csv")
+
 
 any(is.na(data_orig$ess_short)) # check if there are any NA values in ess_short))
 
