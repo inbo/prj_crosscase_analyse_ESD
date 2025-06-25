@@ -22,6 +22,11 @@ quantile_and_m <- function(x, probs = c(0.025, 0.5, 0.975), na.rm = TRUE, avg = 
 
 # laad hulpdata
 
+ess_def <- readRDS("interim/ess_def.rds")
+data_ana <- readRDS("interim/data_ana.rds")
+ess_ordering <- readRDS("interim/ess_ordering.rds")
+
+
 ess_def <- readr::read_csv2("data/ess_overview.csv", 
                             show_col_types = FALSE) |> 
   left_join(readr::read_csv2("data/cluster_definition.csv", 
@@ -122,8 +127,6 @@ pheatmap(similarity_matrix_t,
          clustering_distance_cols = "euclidean",
          color = colorRampPalette(c("red", "white", "blue"))(100),
          main = "Regional Similarity Matrix")
-
-
 
 
 library(igraph)

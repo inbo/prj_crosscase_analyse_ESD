@@ -1,15 +1,15 @@
-﻿case;case_short;case_acro
-Landen;Landen;Lnd
-Mechelen;Mechelen;Mch
-Stiemer;Stiemer;Stm
-Maarkebeek;Maarke;Mkb
-Voeren;Voeren;Vrn
-Dijle;Dijle;Dle
-De Wijers: Nature;Wij-nat;Wnt
-De Wijers: Agriculture;Wij-agri;Wag
-De Wijers: Stream valleys;Wij-val;Wsv
-De Wijers: Ponds;Wij-ponds;Wp
-De Wijers: Urban green spaces;Wij-urban;Wug
-De Wijers: Canal;Wij-canal;Wcn
-Gelinden;Gelinden;Gld
-Kluisbos;Kluis;Kls
+case;case_short;case_acro;case_order
+Landen;Landen;Lnd;1
+Mechelen;Mechelen;Mch;2
+Stiemer;Stiemer;Stm;3
+Maarkebeek;Maarke;Mkb;4
+Voeren;Voeren;Vrn;5
+Dijle;Dijle;Dle;6
+De Wijers: Nature;Wij-nat;Wnt;7
+De Wijers: Agriculture;Wij-agri;Wag;8
+De Wijers: Stream valleys;Wij-val;Wsv;9
+De Wijers: Ponds;Wij-ponds;Wp;10
+De Wijers: Urban green spaces;Wij-urban;Wug;11
+De Wijers: Canal;Wij-canal;Wcn;12
+Gelinden;Gelinden;Gld;13
+Kluisbos;Kluis;Kls;14

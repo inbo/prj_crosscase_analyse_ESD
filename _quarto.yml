@@ -16,7 +16,8 @@ book:
     - intro.qmd
     - summary.qmd
     - data_verkenning.qmd
-    - hurdle_model.qmd
+    - modellering_vereenvoudigd.qmd
+    - modellering_respondentniveau.qmd
     - references.qmd
   downloads: pdf
   open-graph: true
