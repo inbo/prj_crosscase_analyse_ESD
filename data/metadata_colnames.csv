@@ -1,0 +1,13 @@
+name;description
+case;originele naam van de case
+case_short;verkorte naam van de case
+respondent;identificatienummer van de respondent
+ess_cluster;hoofdcluster
+cluster_short;verkorte clusternaam voor in de figuren
+ess_unique;unieke ecosysteemdienstnaam
+unique_short;zelfgedefinieerde korte naam voor de unieke ecosysteemdiensten
+ess_common;geaggregeerde ecosysteemdienst
+ess_short;verkorte naam voor geaggregeerde ecosysteemdienst voor in de figuren
+score_original;originele score zoals in de ruwe data
+score;aangepaste score voor de analyses (bv 2.25 wordt 3)
+f_score;score geformatteerd als een categorische waarde van 1 tot 5 ( ~ -1 tot 3)

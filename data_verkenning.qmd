@@ -1,65 +1,78 @@
 <!--Let op: Figuren en tabellen in het Engels!! -->
 
-```{=html}
+
 <!--
 vragen aan Francis:
-* Hoe food&feed beter categoriseren --> zelf nakijken
+
+* Hoe food&feed beter categoriseren: zelf nakijken
 * ok om in data cluster voor kluisbos de NA te vervangen door water cycle related services?
 * ok om gemiddelde unieke score te gebruiken voor de common score?
 
 to do:
-* vragen zijn nu puur op data beantwoord --> modelmatig
+* vragen zijn nu puur op data beantwoord: modelmatig
 * omzetten naar een model (eventueel hurdle model zoals in thesis)
 * afronding aanpassen naar mail
 * nakijken clustering vergelijken met definities in Data (zelfde excel file)
 -->
-```
+
 
 # Data verkenning
 
-```{r setup, include=FALSE}
+```{r setup}
 #| include: false
 #| #| message: false
 #| warning: false
+#| message: false
 #| results: hide
 library(tidyverse)
+library(here)
 library(readxl)
 library(INBOtheme)
+source(here("scripts", "_hulpfuncties.R"))
+source(here("scripts", "data_import.R"))
+conflicted::conflict_prefer_all(c("dplyr"), quiet = TRUE)
+```
 
+```{r load-data}  
+#| warning: false
+#| message: false
+#| cache: true
+data_ana <- readRDS(here("interim", "data_ana.rds"))
+data_avg <- readRDS(here("interim", "data_avg.rds"))
 
-data_ana <- readRDS("interim/data_ana.rds") 
-data_avg <- readRDS("interim/data_avg.rds")
-
+#Let op, houdt geen rekening met common maar unieke esd
 data_smry <- data_ana |>
-  group_by(case_short, ess_short, f_score) |>
+  group_by(case_short, ess_unique, ess_short, f_score) |>
   summarise(n = n(),
             .groups = "drop")
+
+inbostyle_colors <- colorRampPalette(colors = inbo_palette()[1:3])
+score_colors <- c(inbo_rood, inbo_geel, inbo_lichtgroen, inbo_groen, inbo_donkerblauw)
+
+n_cases <- length(unique(data_ana$case_short))
+n_ess <- length(unique(data_ana$ess_short))
 
 ```
 
 
-## Data inhoud
+## Data technisch
 
-De data bestaat uit `r nrow(data_ana)` rijen en `ncol(data_ana)` kolommen. De kolommen zijn: `r paste(colnames(data_ana), sep = ", ")`. De data is ingelezen en de kolomnamen zijn omgezet naar kleine letters. De kolomnamen zijn: `r colnames(data_ana) |> paste(collapse = ", ").
+### Beschrijving
 
-Verder valt op dat in de data voor de cases "Gelinden" en "De Wijer" er geen link is tussen respondent en antwoord, dus er is geen effect van respondent op antwoord mogelijk om te detecteren in die gevallen.
+De data bestaat uit `r nrow(data_ana)` rijen en `r ncol(data_ana)` kolommen waarvoor een evaluatiescore voor een ecosysteemdienst gekend is.
 
-Alle cases worden herleid op ess_common niveau door een gewogen gemiddelde te pakken van de ess_unique scores. Voor de cases "Gelinden" en "De Wijer" wordt het gemiddelde genomen van de scores per ess_unique. Voor de overige cases wordt het gemiddelde genomen van de scores per respondent en deze worden dan uitgemiddeld over de ess_unique.
+De data werd ingelezen uit een excel bronbestand en de kolomnamen zijn omgezet naar kleine letters. De kolomnamen zijn:
 
-In de analyse op de vereenvoudigde data zal geen rekening gehouden worden met het respondent-effect.
+```{r colames-data}
+#| message: false
+#| results: asis
+colnam <- readr::read_csv2(here("data", "metadata_colnames.csv")) |>
+  select(name, description)
+cat(paste0("* **", colnam$name, "**: ", colnam$description), sep = "\n")
 
-## Vergelijking categorisering en ruwe data
+```
 
-De categorieën in de data zijn vergeleken met de categorisering in de data van de ESS. Deze komen niet volledig overeen, maar de verschillen zijn niet groot:
-
-- Er wordt een categorie "Bio-production" gebruikt in de data, die de categorieën "Food & feed production" en "Wood & fibre production" samenvoegt.
-- Er zijn enkele verschillen in het gebruik van hoofdletters en spaties, maar de categorieën komen overeen.
-- In de categorisering wordt vaak tussen haakjes nog extra informatie gegeven die in de data niet voorkomt, zoals bv "Fishery" en "Fishery (recreative & professional)".
-- In het kluisbos wordt de categorie "Water cycle related services" gebruikt bij de waarden die NA zijn in de data.
-
-Er is gekozen de categorisering in de data te gebruiken en niet deze in het tabblad rond categorisering van de Excel file omdat het makkelijker is om te werken met de kortere namen.
-
-## Aanpassen scores
+### Aanpassen scores
 
 Om naar een ordinaal scoringssysteem te komen is de originele score `score_origineel` aangepast naar een score `score` die loopt van -1 tot 3. De originele score is afgerond naar het dichtstbijzijnde hoger gelegen gehele getal:
 
@@ -69,14 +82,38 @@ Om naar een ordinaal scoringssysteem te komen is de originele score `score_origi
 
 Er wordt ook een kolom f_score gemaakt die een ordinale factor is van de score, met niveaus van 1 tot 5 (dus score + 2) zodat deze gebruikt kan worden in de analyse.
 
+### Beperkingen in de dataset
+
+In de data voor de cases "Gelinden" en "De Wijer" is er geen link tussen respondent en antwoord, dus er is geen effect van respondent op antwoord mogelijk om te detecteren in die gevallen. Deze link zal dan ook niet gebruikt worden voor de analyse over de cases heen.
+
+Doordat er heel veel unieke ecosysteemdiensten zijn (`r nrow(data_ana |> select(ess_cluster, ess_common, ess_unique) |> distinct())`), die verschillen tussen de verschillende cases, worden deze herleid tot een geaggregeerd niveau `ess_common` met `r nrow(data_ana |> select(ess_cluster, ess_common) |> distinct())` verschillende mogelijkheden. Elk van deze zijn op zich nog samengevoegd in ecosysteemdienstclusters (`r nrow(data_ana |> select(ess_cluster) |> distinct())`).
+
+Spijtig genoeg komen de `ess_common` niet in alle cases voor, wat een grondige analyse bemoeilijkt.
+
+Voor alle cases worden de `ess_unique` herleid naar `ess_common`  door een gewogen gemiddelde te nemen van de ess_unique scores. Per respondent wordt het gemiddelde van iedere `ess_unique` genomen en deze worden dan uitgemiddeld over de algemene ecosysteemdiensten `ess_common`.
+
+Voor de cases "Gelinden" en "De Wijer" wordt het gemiddelde genomen van de scores per unieke ecosysteemdienst, omdat er geen informatie is per respondent.
+
+### Resultaten vergelijking ruwe data en gedefinieerde classificatie
+
+De categorieën in de data zijn vergeleken met de categorisering in de data van de ESS. Deze komen niet volledig overeen, maar de verschillen zijn niet groot:
+
+- Er wordt een categorie `Bio-production` gebruikt in de data, die de categorieën `Food & feed production` en `Wood & fibre production` samenvoegt.
+- Er zijn enkele verschillen in het gebruik van hoofdletters en spaties, maar de categorieën komen overeen.
+- In de categorisering wordt vaak tussen haakjes nog extra informatie gegeven die in de data niet voorkomt, zoals bv `Fishery` en `Fishery (recreative & professional)`.
+- In het kluisbos wordt de categorie `Water cycle related services` gebruikt bij de waarden die niet overeenkomen in de categorisering.
+
+## Data inhoud
+
+### ESS categorieën
 
 Hieronder volgt een overzicht van namen en afkortingen die gebruikt worden in de data. Daarnaast is een overzicht van de ESS categorieën per case weergegeven.
 
-```{r tab-defcases}
+Er is een groot verschil in aantal respondenten per case, en ook de verschillende bevraagde ecosysteemdiensten verschillen sterk van case tot case, zelfs al worden ze geaggregeerd tot `ess_common`.
 
-
+```{r tbl-defcases}
 n_respondents <- data_ana |> 
-  group_by(case, case_short, ess_common, ess_short) |>
+  group_by(case, case_short, ess_unique, ess_common, ess_short) |>
   summarise(respondents = n(), .groups = "drop")
   
 tb_cases <- data_ana |>
@@ -86,25 +123,33 @@ tb_cases <- data_ana |>
                         n_ess = length(unique(ess_short))),
             by = "case")
 
-DT::datatable(tb_cases |> 
-                group_by(case, case_short) |>
-                summarise(n_resp = max(n_resp),
-                          n_unique_ess = n_distinct(ess_unique),
-                          n_ess = max(n_ess),
-                          .groups = "drop") |> 
-                select(case, n_resp, n_ess) |>
-                distinct() |> 
-                arrange(case),
+tb_cases_tab <- tb_cases |> 
+  group_by(case, case_short) |>
+  summarise(n_resp = max(n_resp),
+            n_unique_ess = n_distinct(ess_unique),
+            n_common_ess = max(n_distinct(ess_common)),
+            .groups = "drop") |> 
+  select(case, case_short, n_resp,n_unique_ess, n_common_ess) |>
+  distinct() |> 
+  arrange(case)
+
+DT::datatable(tb_cases_tab,
               colnames = c("Case",
+                           "Short name",
                            "Number of respondents",
                            "Number of Unique ESS",
                            "Number of common ESS"),
-              options = list(pageLength = 15, autoWidth = FALSE),
+              options = list(pageLength = 15,
+                             autoWidth = TRUE,
+                             dom = "t"),
+              rownames = FALSE,
               caption= "Overview of cases and number of respondents")
 
 ```
 
-```{r tab-defess}
+Een volledig overzicht van alle "gemeenschappelijke" ecosysteemdiensten vind je in tabel @tbl-defess alsook in  welke gebieden (cases) die bevraagd zijn.
+
+```{r tbl-defess}
 
 tb_ess <- data_ana |> 
   group_by(cluster_short, ess_common, ess_short) |> 
@@ -119,13 +164,19 @@ DT::datatable(tb_ess,
                            "Nr of ESS combined", 
                            "Nr of cases",
                            "Cases"),
+              options(list(pageLength = 36,
+                           autoWidth = TRUE,
+                           dom = "t")),
+              rownames = FALSE,
               caption = "Overview of ESS categories",
-              options(list(pageLength = 12, autoWidth = FALSE)))
+)
 
 ```
 
+### Verdeling ecosysteemdiensten
+
+
 ```{r fig-caseOverview}
-#| eval: false
 #| fig.cap: "Occurence of common ecosystem services across the case studies. Some cases have more than one service under the same common service name. Total cases are added to each bar, total services between brackets"
 tb <- data_ana |>
   group_by(case_short, ess_short, ess_unique) |>
@@ -150,21 +201,27 @@ ggplot(tb |> mutate(ess_short = factor(ess_short, levels = sorted_levels)),
             aes(x = ess_short, y = total_ess, label = fig_entry), hjust = -0.1,
             inherit.aes = FALSE, color = "#888888") + coord_flip() +
   ylim(c(0, max(totals$total_ess) + 2)) +
+  ggplot2::scale_fill_discrete(type = inbostyle_colors(n_cases)) +
   labs(fill = "case", y = "frequency of services", x = "common service name")
 
 
 ```
 
-```{r caseoverview2a}
-#| fig.cap: "Occurence of common ecosystem services across the case studies"
+
+Hieronder (figuur @fig-caseoverview2a) volgt een verdeling van het aantal unieke en gemeenchappelijke ecosysteemdiensten. Hun aantal verschilt sterk over de verschillende hoofdclusters maar ook tussen de cases zelf.
+
+
+```{r fig-caseoverview2a}
+#| fig.cap: "Occurence of unique and common ecosystem services across the case studies"
+#| message: false
 tb_common <- data_ana |> 
-  group_by(case, ess_cluster, ess_common, ess_short, ess_unique) |>
+  group_by(case_short, cluster_short, ess_common, ess_short, ess_unique) |>
   summarise(n_resp = n(), .groups = "drop_last") |> 
   summarise(n_resp = max(n_resp), .groups = "drop",
              n_ess_unique = n())
 
 tb_cluster <- tb_common |> 
-  group_by(case, ess_cluster) |>
+  group_by(case_short, cluster_short) |>
   summarise(max_n_resp = max(n_resp),
             min_n_resp = min(n_resp),
             n_ess_common = n(), 
@@ -174,124 +231,247 @@ tb_cluster <- tb_common |>
          total_common = sum(n_ess_common),
          fr_unique = n_ess_unique / total_unique,
          fr_common = n_ess_common / total_common,
-         .by = c(case)) 
+         .by = c(case_short)) 
 
-ggplot(tb_cluster, aes(x = case, y = fr_common, fill = ess_cluster)) +
+tb_cluster_fig  <- 
+  bind_rows(
+    tb_cluster |> 
+      transmute(case_short, cluster_short,
+                fraction = fr_unique, which = "unique"),
+    tb_cluster |> 
+      transmute(case_short, cluster_short,
+                fraction = fr_common, which = "common"))
+
+ggplot(tb_cluster_fig,
+       aes(x = case_short, y = fraction, fill = cluster_short)) +
   geom_bar(stat = "identity") +
   scale_y_continuous(labels = scales::percent) +
   labs(x = "case", y = "percentage of common services", fill = "cluster") +
-  coord_flip()
-```
-
-```{r caseoverview2b}
-ggplot(tb_cluster, aes(x = case, y = fr_unique, fill = ess_cluster)) +
-  geom_bar(stat = "identity") +
-  scale_y_continuous(labels = scales::percent) +
-  labs(x = "case", y = "percentage of unique services", fill = "cluster") +
-  coord_flip()
-```
-
-```{r caserespondents}
-
-data_orig |> group_by(ess_short, case_acro, ess_unique) |> 
-  summarise(n = n(), .groups = "drop_last") |> 
-  summarise(min_n_resp = min(n), .groups = "drop") |> 
-  pivot_wider(names_from = case_acro, values_from = min_n_resp, values_fill = 0) |> 
-  knitr::kable(caption = "Minimum number of respondents per unique ESS category per case")
-
-
+  coord_flip() +
+  facet_wrap(~which)
 ```
 
 ## Score verdeling
 
-In @fig1 is de verdeling van de scores per case en ESD common weergegeven. Hier zie je duidelijk dat sommige esd common meer esd unique categorieën bevatten dan andere.
+In @fig-fig1 is de verdeling van de scores per gemeenschappelijke ecosysteemdienst weergegeven. Niet iedere ecosysteemdienst komt in elke case voor.
 
-```{r fig1}
+Over het algemeen worden de meeste ecosysteemdiensten als positief ervaran, toch is dit in de case `Dijle` en in mindere mate `Gelinden` minder uitgesproken met scores die heel vaak 0 of 1 zijn in plaats van 2 of 3 in andere gebieden.
+
+
+```{r fig-fig1}
 #| fig.cap: "Distribution normalised scores per case and ESD common"
 #| fig.width: 8
 #| fig.height: 11
-ggplot(data_smry, aes(x = ess_short, y = n, fill = f_score)) +
-geom_bar(position = "stack", stat = "identity") + 
-  facet_wrap(~case, scales = "free_y", ncol = 2) +
- theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) + 
-  labs(x = "ESS common (short)", y = "Frequency", fill = "Score") 
+
+fraction_data <- 
+  data_ana |> 
+  group_by(case_short, ess_short, f_score) |>
+  summarise(n_resp = n(), .groups = "drop") |>
+  group_by(case_short, ess_short) |>
+  mutate(f_resp = n_resp / sum(n_resp)) 
+
+
+# Create stacked barplot
+ggplot(fraction_data, aes(x = ess_short, y = f_resp, fill = factor(f_score))) +
+  geom_col() +
+  facet_wrap(~ case_short, ncol = 2) +
+  labs(x = "ESS common",
+       y = "Fraction of Respondents", 
+       fill = "Score",
+       title = "Distribution of Scores by ESS and Case") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.3)) +
+  scale_y_continuous(labels = scales::percent_format()) +
+  scale_fill_manual(values = score_colors) 
+
 ```
 
-In @fig2 is de verdeling van de genormaliseerde scores per case en ESD common weergegeven. Op het eerste zicht is duidelijk dat jacht en gemotoriseerde recreatie over het algemeen niet gewenst zijn
+In @fig-fig2 is de verdeling van de genormaliseerde scores per case en ESD common weergegeven. Op het eerste zicht is duidelijk dat jacht en gemotoriseerde recreatie over het algemeen niet gewenst zijn
 
-```{r fig2}
+```{r fig-fig2}
 #| fig.cap: "Distribution normalised scores per case and ESD common"
-ggplot(data_processed |> 
-          mutate(ess_short = reorder(ess_short, ess_order)),
-        aes(x = ess_short, y = m_score, 
+
+dtmp <- data_avg |>
+  group_by(ess_short) |>
+  summarise(mscore = mean(m_score))
+
+
+data_avg |>
+  mutate(ess_short = factor(ess_short, 
+                           levels = dtmp$ess_short[order(dtmp$mscore)])) |>
+  ggplot(aes(x = ess_short, y = m_score, 
             color = case, group = case)) + 
-   geom_line() + 
-   geom_point() +
-   theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
-   labs(x = "ESS common", y = "Mean score", color = "Case")
+  geom_line() + 
+  geom_point() +
+  scale_color_manual(values = inbostyle_colors(n_cases)) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  labs(x = "ESS common", y = "Mean score", color = "Case")
+
 ```
 
-```{r fig3a}
+```{r fig-fig3data}
+
+
+max_possible_sd <- 2 #sd(c(rep(-1, 100000), rep(3, 100000)))
+
+data_p <- data_ana |> 
+  group_by(case_short, cluster_short, ess_short, ess_unique, f_score) |> 
+  summarise(aantal = n(), .groups = "drop") |> 
+  group_by(case_short, cluster_short, ess_short) |> 
+  mutate(n_tot = sum(aantal),
+         n_pers = max(aantal)) |> 
+  group_by(case_short, cluster_short, ess_short, f_score, n_pers) |> 
+    summarise(n_resp = max(n_tot),
+              aantal = sum(aantal),
+              .groups = "drop") |> 
+  mutate(fr_score = aantal / n_resp,
+         nval_score = as.numeric(as.character(f_score))) |> 
+  group_by(case_short, cluster_short, ess_short, n_pers) |> 
+  mutate(mean_score = sum(fr_score * nval_score),
+         sd_score = sd(rep(nval_score, rep(aantal))),
+         consensus = 1 - (sd_score / max_possible_sd))
+    
+
+data_p_summary <- data_p |>
+  group_by(case_short, cluster_short, ess_short) |> 
+  summarise(mean_score = max(mean_score),
+            sd_score = max(sd_score),
+            consensus = max(consensus),
+            .groups = "drop")
+
+
+# Option 1: Heatmap with consensus indicated by transparency/alpha
+# Lower SE = higher consensus = more opaque
+colorramp <- c("red","lightblue", "#93A0EE", "#0000FF", "#000066")
+p1 <- data_p_summary |> 
+  mutate(ess_short = reorder(ess_short, mean_score, mean)) |> 
+  ggplot(aes(x = ess_short, y = case_short, 
+             fill = mean_score, alpha = consensus)) +
+  geom_tile() +
+  scale_fill_gradientn(
+    colors = colorramp,
+    values = scales::rescale(c(-1, 0, 1, 2, 3)),
+    name = "Mean\nScore",
+    breaks = c(-1, 0, 1, 2, 3),
+    labels = c("-1", "0", "1", "2", "3")) +
+  scale_alpha_continuous(name = "Consensus\n(1/SD)", range = c(0.3, 1)) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(x = "ESS", y = "Case", 
+       title = "Mean Score and Consensus by Case and ESS",
+       subtitle = "Color = Mean Score, Opacity = Consensus (higher = more consensus)")
+
+# Option 3: Bubble chart with consensus as inverse size
+p3 <- data_p_summary |>
+  mutate(ess_short = reorder(ess_short, mean_score, mean)) |>
+  ggplot(aes(x = ess_short, y = case_short, 
+             color = mean_score, size = consensus)) +
+  geom_point() +
+  scale_color_gradientn(colors = colorramp,
+                        values = scales::rescale(c(-1, 0, 1, 2, 3)),
+                        name = "Mean\nScore",
+                        breaks = c(-1, 0, 1, 2, 3),
+                        labels = c("-1", "0", "1", "2", "3")) +
+  scale_size_continuous(name = "Consensus", range = c(1, 6)) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(x = "ESS", y = "Case", 
+       title = "Mean Score and Consensus by Case and ESS",
+       subtitle = "Color = Mean Score, Size = Consensus (larger = more consensus)")
+```
+
+Figuur @fig-plotdatasummary3 toont in 1 oogopslag welke ecosysteemdiensten gewenst zijn per case, en hoeveel consensus er is binnen een case voor die dienst.
+
+```{r fig-plotdatasummary3}
 #| fig.cap: "Distribution normalised scores per case and ESD common"
-#| fig.width: 8
+#| fig.width: 11
 #| fig.height: 11
-
-ggplot(data_processed, aes(x = ess_short, y = case_acro, 
-            color = m_score, size = se_score)) +
-  geom_point() + 
-   theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
-  labs(x = "ESS common", y = "Case", color = "Mean score", size = "SE score")
-  coord_flip()
+print(p3)
 
 ```
 
-```{r fig3b}
+
+Figuur @fig-fig3b toont deze informatie in een formaat om de algemene gewenstheid en consensus per ecosysteemdienst te kunnen zien.
+
+```{r fig-fig3b}
 #| fig.cap: "Distribution normalised scores per case and ESD common"
 #| fig.width: 11
 #| fig.height: 11
 
-ggplot(data_processed, aes(x = ess_short, y = m_score, 
-            color = case_acro, size = se_score)) +
-  geom_point() + 
+ggplot(data_p_summary |> 
+         mutate(ess_short = reorder(ess_short, mean_score, mean)), aes(x = ess_short, y = mean_score, 
+            color = case_short, size = sd_score)) +
+  geom_point(alpha = 0.5) + 
+  geom_line(data = data_p_summary |> summarise(avg = mean(mean_score),
+                                           .by = ess_short),
+             aes(x = ess_short, y = avg, group = 1),
+             inherit.aes = FALSE) +
+  geom_point(data = data_p_summary |> summarise(avg = mean(mean_score),
+                                           .by = ess_short),
+             aes(x = ess_short, y = avg),
+             pch = "x",
+             size = rel(3),
+             inherit.aes = FALSE) +
+  scale_color_manual(values = inbostyle_colors(n_cases)) + 
    theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
-  labs(x = "Mean score", y = "ESS common", color = "Case", size = "SE score")
-  coord_flip()
+  labs(x = "ESS", y = "Mean score", color = "Case", size = "SE score") 
 
 ```
 
 ## Algemene gewenstheid en consensus
 
-```{r algemenegewenstheiddata}
-#| fig.cap: "Distribution of average wishedness per case"
-case_scores <- data_processed |> 
-  group_by(case) |> 
+De algemene gewenstheid van ecosysteemdiensten zal verschillen van case tot case:
+
+- sommige ecosysteemdiensten zijn relevanter voor specifieke cases
+- er wordt niet altijd veel meerwaarde gezien
+- er worden verschillende ecosysteemdiensten bevraagd per case
+
+```{r tbl-algemenegewenstheiddata}
+case_scores <- data_p_summary |> 
+  group_by(case_short) |> 
   summarize(n_system_services = n(),
-            wishedness = mean(m_score, na.rm = TRUE),
-            average_variation = sd(m_score, na.rm = TRUE), .groups = "drop") |> 
+            wishedness = mean(mean_score, na.rm = TRUE),
+            average_consensus = mean(consensus, na.rm = TRUE),
+            .groups = "drop") |> 
   arrange(desc(wishedness))
 
-case_scores |> knitr::kable(caption = "Average wishedness ecosystem services per case")
+case_scores |>
+  knitr::kable(
+    caption = "Average wishedness of ecosystem services per case",
+    col.names = c("case",
+                  "different ESS",
+                  "mean score",
+                  "average consensus"))
 
-
-ess_scores <- data_processed |> 
+ess_scores <- data_p_summary |> 
   group_by(ess_short) |> 
   summarize(n_cases = n(),
-            wishedness = mean(m_score, na.rm = TRUE),
-            average_variation = sd(m_score, na.rm = TRUE), .groups = "drop") |> 
+            wishedness = mean(mean_score, na.rm = TRUE),
+            average_consensus = mean(consensus, na.rm = TRUE),
+            .groups = "drop") |> 
   arrange(desc(wishedness)) 
 
-ess_scores |> knitr::kable(caption = "Average wishedness ecosystem services")
+ess_scores |>
+  knitr::kable(caption = "Average wishedness of ecosystem services",
+               col.names = c("ESS",
+                             "different cases",
+                             "mean score",
+                             "average consensus"))
 
 ```
 
-```{r algemenegewenstheid1}
-ggplot(data_processed |>
-         mutate(case = factor(case, levels = rev(case_scores$case))) |>
+
+
+
+```{r fig-algemenegewenstheid1}
+#| fig.cap: "Distribution of average wishedness per case over the ESS. On the left the number of ESS per case is shown"
+ggplot(data_p_summary |>
+         mutate(case = factor(case_short,
+                              levels = rev(case_scores$case_short))) |>
          group_by(case) |>
          mutate(n_ess = n_distinct(ess_short)) |>
          ungroup() |>
-         mutate(case = factor(case, levels = rev(case_scores$case))),
-       aes(x = case, y = m_score)) +
+         mutate(case = factor(case, levels = rev(case_scores$case_short))),
+       aes(x = case, y = mean_score)) +
   geom_boxplot() +  
   # Use a separate dataset with one row per ess_short for labels
   geom_text(data = . %>% 
@@ -299,19 +479,21 @@ ggplot(data_processed |>
               slice(1) %>% 
               ungroup(),
             aes(y = -1.1, x = case, label = n_ess)) +
+  labs(x = "case", y = "mean score") + 
   coord_flip()
 ```
 
-```{r algemenegewenstheid2}
-#| fig.cap: "Distribution of average wishedness per ESS over the cases"
-ggplot(data_processed |>
+
+```{r fig-algemenegewenstheid2}
+#| fig.cap: "Distribution of average wishedness per ESS over the cases. On the left the number of cases per ESS is shown"
+ggplot(data_p_summary |>
          mutate(ess_short = factor(ess_short,
                                    levels = rev(c(ess_scores$ess_short)))) |> 
          group_by(ess_short) |>
-         mutate(n_cases = n_distinct(case)) |>
+         mutate(n_cases = n_distinct(case_short)) |>
          ungroup() |>
          mutate(ess_short = factor(ess_short, levels = rev(ess_scores$ess_short))),
-       aes(x = ess_short, y = m_score)) +
+       aes(x = ess_short, y = mean_score)) +
   geom_boxplot() +  
   # Use a separate dataset with one row per ess_short for labels
   geom_text(data = . %>% 
@@ -319,74 +501,96 @@ ggplot(data_processed |>
               slice(1) %>% 
               ungroup(),
             aes(y = -1.1, x = ess_short, label = n_cases)) +
+  labs(x = "ess", y = "mean score") +
   coord_flip()
 ```
 
-```{r consensus1a}
+
+```{r fig-consensus1a}
+#| fig.cap: "Concesnsue per ESS"
 
 levels_ess <- ess_scores |> 
-  arrange(average_variation) |> 
+  arrange(average_consensus) |> 
   mutate(ess_short = factor(ess_short, levels = ess_short))
 
-ggplot(data_processed |> 
-         filter(!is.na(se_score)) |> 
+ggplot(data_p_summary |> 
+         dplyr::filter(!is.na(consensus)) |> 
          mutate(ess_short = factor(ess_short, 
                                    levels = levels_ess$ess_short)),
-       aes(x = ess_short, y = se_score, color = case_acro)) + 
+       aes(x = ess_short, y = consensus, color = case_short)) + 
   geom_point() +
+  scale_color_manual(values = inbostyle_colors(n_cases)) + 
   coord_flip()
 
 ```
 
-```{r consensus1b}
-
+```{r fig-consensus1b}
+#| fig.cap: "Average variation per ESS"
 pd <- ess_scores |> 
-  arrange(average_variation) |> 
+  arrange(average_consensus) |> 
   mutate(ess_short = factor(ess_short, levels = ess_short))
 
 ggplot(pd, 
-       aes(x = ess_short, y = average_variation, group = 1)) + 
+       aes(x = ess_short, y = average_consensus, group = 1)) + 
   geom_line() +
   coord_flip()
 
 ```
 
-```{r overzichtstabel}
-score_cutoff <- c(-1, 0, 1, 2, 3)
-score_breaks <- c("undesired", "mildy desired", "desired", "highly desired")
-se_cutoff <- c(0, 0.375, 0.75, 1.5)
-se_breaks <- c("consensus", "in-between", "disagreement")
+
+<!-- TOT HIER DOORLOPEN -->
+
+
+
+```{r tbl-overzichtstabel}
+score_breaks <- c(-1, 0, 1, 2, 3)
+score_labels <- c("undesired", "mildy desired", "desired", "highly desired")
+se_breaks <- c(0, 0.375, 0.75, 1.5)
+se_labels <- c("consensus", "in-between", "disagreement")
+#gebaseerd op qnorm(mean = 0.5, sd = 0.25, p = c(0.025,1/3,2/3,0.975))
+#consensus in vrij normaal verdeeld tussen 0 en 1
+#0.5 als gemiddelde en 0.25 als sd zijn dan logische instelwaarden
+cnss_breaks <- c(0,0.4,0.6,1) 
+cnss_breaks <- c(0,0.49,0.58,1) #verdeeld in ongeveer 3 gelijke stukken
+cnss_labels <- rev(se_labels)
 
 ess_scores_tab <- ess_scores |> 
-  mutate(score = cut(wishedness, breaks = score_cutoff, labels = score_breaks),
-         se = cut(average_variation, breaks = se_cutoff, labels = se_breaks))
+  mutate(score = cut(wishedness,
+                     breaks = score_breaks,
+                     labels = score_labels),
+         consensus = cut(average_consensus,
+                         breaks = cnss_breaks,
+                         labels = cnss_labels))
 
 # Group the data and collect ESS names in each category
 ess_grouped <- ess_scores_tab %>%
-  #mutate(ess_short = gsub("&", "\\\\&", ess_short)) %>%
-  group_by(score, se) %>%
-  #summarise(ess_list = paste(ess_short, collapse = ", "), .groups = "drop") %>%
-  summarise(ess_list = paste0("\n", paste(ess_short, collapse = "\n"), "\n")) |>  
+  group_by(score, consensus) %>%
+  summarise(ess_list = paste(ess_short, collapse = "; "),
+            .groups = "drop") |>  
   # Convert to wide format
   tidyr::pivot_wider(
     names_from = score,
     values_from = ess_list,
     values_fill = ""  # Empty string for missing combinations
   ) |> 
-  select(se, "highly desired", "desired", "mildy desired", "undesired") |> 
-  mutate(se = factor(se, levels = se_breaks)) |> 
-  arrange(se)
+  select(consensus, "highly desired", "desired", "mildy desired", "undesired") |>
+  mutate(consensus = factor(consensus, levels = cnss_labels)) |> 
+  arrange(consensus)
 
 # Create a markdown table with kable and kableExtra
+# Create a markdown table with kable and kableExtra
 ess_table <- ess_grouped %>%
-  knitr::kable(format = "markdown", 
+  mutate(across(where(is.character), ~ gsub(";", "<br>", .x))) |> 
+  knitr::kable(format = "html",  # Changed from "markdown" to "html"
+               caption = "Overview of ESS categories by wishedness (score mean, group cutoffs -1,0,1,2,3) and consensus",
         col.names = colnames(ess_grouped),
-        align = c("l", "l", "l", "l", "l")) %>%
+        align = c("l", "l", "l", "l", "l"),
+        escape = FALSE) %>%  # Added escape = FALSE
   kableExtra::kable_styling(bootstrap_options = c("striped", "hover"), 
                 full_width = FALSE) %>%
   kableExtra::column_spec(2:4, width = "12em", background = "lightyellow") %>%
+  kableExtra::column_spec(5, width = "12em", background =  "#FFCCCB") %>%
   kableExtra::row_spec(0, bold = TRUE)
-
 # Print the table in R Markdown
 ess_table
 
@@ -411,8 +615,8 @@ Ik heb gekozen om de unieke ESS uit te middellen naar de common ESS. Dit is geda
 
 Een andere methode zou zijn om telkens random een unieke ESS te kiezen voor iedere common ESS, en dan moet dat verschillende keren gedaan worden om de modellen uit te middelen. Dit is een optie moest het hurdle model gekozen worden.
 
-De scoring is nu van -1 tem 3 (maar ook 0 nog inclusief, dus 5 basislevels ipv 4, al laten de notities van Raisa beiden toe.) Doordat er geen herschaling is tussen -1 en 0, mag misschien niet zomaar het gemiddelde genomen worden in de statistische analyse, dus dan is het eerder het hurdle model, of een categorisch model (al moeten dan de kommagetallen weg). Nog beslissen.
+De scoring is nu van -1 tem 3 (maar ook 0 nog inclusief, dus 5 basislevels ipv 4, al laten de notities van Raisa beiden toe.) Doordat er geen herschaling is tussen -1 en 0, mag misschien niet zomaar het gemiddelde genomen worden in de statistische analyse, dus dan is het eerder het hurdle model, of een cumulatief logistisch model.
 
-Heeft het zin de clusters Food & feed production and Fibre & Bioenergy als aparte clusters te zien wat ze komen enkel voor in Kluisbos.
+Heeft het zin de clusters Food & feed production and Fibre & Bioenergy als aparte clusters te zien wat ze komen enkel voor in Kluisbos. Dat wordt samengevoegd onder bioproductie.
 
 Ook analyse van samenhang voor waar dat mogelijk is.
