@@ -37,8 +37,9 @@ conflicted::conflict_prefer_all(c("dplyr"), quiet = TRUE)
 #| warning: false
 #| message: false
 #| cache: true
-data_ana <- readRDS(here("interim", "data_ana.rds"))
-data_avg <- readRDS(here("interim", "data_avg.rds"))
+data_ana    <- readRDS(here("interim", "data_ana.rds"))
+data_avg    <- readRDS(here("interim", "data_avg.rds"))
+data_common <- readRDS(here("interim", "data_common.rds"))
 
 #Let op, houdt geen rekening met common maar unieke esd
 data_smry <- data_ana |>
@@ -55,11 +56,23 @@ n_ess <- length(unique(data_ana$ess_short))
 ```
 
 
-## Data technisch
+## Data
+
+### Hoofdlijnen
+
+Er zijn 14 gebieden waarin er aan verschillende personen gevraagd werd om verschillende ecosysteemdiensten te scoren van ongewenst tot zeer gewenst. Deze 14 gebieden worden in de analyse gerefereerd als `cases`. De personen worden gerefereerd als `respondenten`.
+
+### Terminologie 
+
+In ieder gebied werden verschillende ecosysteemdiensten bevraagd, sommige overlappen, andere hebben een heel andere naam voor hetzelfde en nog andere zijn opgesplitst in veel kleinere ecosysteemdiensten. De bevraagde ecosysteemdiensten worden `unieke ecosysteemdiensten` genoemd.
+
+Deze worden geaggregeerd in `gemeenschappelijke ecosysteemdiensten`, die in de tekst ook gewoon als `ecosysteemdiensten` benoemd worden.
+
+Deze ecosysteemdiensten worden dan nog eens verder samengevoegd in `ecosysteemdiensten clusters` of kortbenoemd `clusters`.
 
 ### Beschrijving
 
-De data bestaat uit `r nrow(data_ana)` rijen en `r ncol(data_ana)` kolommen waarvoor een evaluatiescore voor een ecosysteemdienst gekend is.
+De oorspronkelijke dataset bestaat uit 6215 rijen met evaluatiescores voor verschillende ecosysteemdiensten. Hiervan zijn er enkele vragen niet beantwoord geweest, waardoor de data zich beperkt tot `r nrow(data_ana)` rijen en `r ncol(data_ana)` kolommen. Er zijn ook 6 records weggelaten in de case Maarkebeek, die allemaal een -1 scoorden, maar ook slechts 2 vragen zouden beantwoord hebben, wat onlogisch lijkt.
 
 De data werd ingelezen uit een excel bronbestand en de kolomnamen zijn omgezet naar kleine letters. De kolomnamen zijn:
 
@@ -80,19 +93,25 @@ Om naar een ordinaal scoringssysteem te komen is de originele score `score_origi
 - 1.2 en 1.5 en (1.8) -> 2  
 - 2.25 en 2.4 -> 3
 
-Er wordt ook een kolom f_score gemaakt die een ordinale factor is van de score, met niveaus van 1 tot 5 (dus score + 2) zodat deze gebruikt kan worden in de analyse.
+Er wordt ook een kolom f_score gemaakt die een ordinale factor is van de score, met niveaus van 1 tot 5 (dus score + 2) zodat deze gebruikt kan worden in de ordinale analyse.
 
 ### Beperkingen in de dataset
 
-In de data voor de cases "Gelinden" en "De Wijer" is er geen link tussen respondent en antwoord, dus er is geen effect van respondent op antwoord mogelijk om te detecteren in die gevallen. Deze link zal dan ook niet gebruikt worden voor de analyse over de cases heen.
+In de data voor de cases "Gelinden" en "De Wijer" - deze laatste omvat 6 cases -  is er geen link tussen respondent en antwoord, dus het is niet mogelijk een respondenteffect in rekening te brengen voor deze cases. Deze link zal dan ook niet gebruikt worden bij de analyse over de cases heen.
 
-Doordat er heel veel unieke ecosysteemdiensten zijn (`r nrow(data_ana |> select(ess_cluster, ess_common, ess_unique) |> distinct())`), die verschillen tussen de verschillende cases, worden deze herleid tot een geaggregeerd niveau `ess_common` met `r nrow(data_ana |> select(ess_cluster, ess_common) |> distinct())` verschillende mogelijkheden. Elk van deze zijn op zich nog samengevoegd in ecosysteemdienstclusters (`r nrow(data_ana |> select(ess_cluster) |> distinct())`).
+Doordat er heel veel unieke ecosysteemdiensten zijn (`r nrow(data_ana |> select(ess_cluster, ess_common, ess_unique) |> distinct())`), die verschillen tussen de verschillende cases, worden deze herleid tot een gemeenschappelijk niveau `ess_common` met `r nrow(data_ana |> select(ess_cluster, ess_common) |> distinct())` verschillende mogelijkheden. Elk van deze zijn op zich nog samengevoegd in ecosysteemdienstclusters (`r nrow(data_ana |> select(ess_cluster) |> distinct())`).
 
 Spijtig genoeg komen de `ess_common` niet in alle cases voor, wat een grondige analyse bemoeilijkt.
 
-Voor alle cases worden de `ess_unique` herleid naar `ess_common`  door een gewogen gemiddelde te nemen van de ess_unique scores. Per respondent wordt het gemiddelde van iedere `ess_unique` genomen en deze worden dan uitgemiddeld over de algemene ecosysteemdiensten `ess_common`.
+
+Voor alle cases worden de unieke ecosysteemdiensten herleid naar gemeenschappelijke ecosysteemdiensten, kortweg ecosysteemdiensten genoemd.
+
+
+<!--, door een gewogen gemiddelde te nemen van de ess_unique scores. Per respondent wordt het gemiddelde van iedere `ess_unique` genomen en deze worden dan uitgemiddeld over de algemene ecosysteemdiensten `ess_common`.
+
 
 Voor de cases "Gelinden" en "De Wijer" wordt het gemiddelde genomen van de scores per unieke ecosysteemdienst, omdat er geen informatie is per respondent.
+-->
 
 ### Resultaten vergelijking ruwe data en gedefinieerde classificatie
 
@@ -311,27 +330,8 @@ data_avg |>
 ```{r fig-fig3data}
 
 
-max_possible_sd <- 2 #sd(c(rep(-1, 100000), rep(3, 100000)))
 
-data_p <- data_ana |> 
-  group_by(case_short, cluster_short, ess_short, ess_unique, f_score) |> 
-  summarise(aantal = n(), .groups = "drop") |> 
-  group_by(case_short, cluster_short, ess_short) |> 
-  mutate(n_tot = sum(aantal),
-         n_pers = max(aantal)) |> 
-  group_by(case_short, cluster_short, ess_short, f_score, n_pers) |> 
-    summarise(n_resp = max(n_tot),
-              aantal = sum(aantal),
-              .groups = "drop") |> 
-  mutate(fr_score = aantal / n_resp,
-         nval_score = as.numeric(as.character(f_score))) |> 
-  group_by(case_short, cluster_short, ess_short, n_pers) |> 
-  mutate(mean_score = sum(fr_score * nval_score),
-         sd_score = sd(rep(nval_score, rep(aantal))),
-         consensus = 1 - (sd_score / max_possible_sd))
-    
-
-data_p_summary <- data_p |>
+data_p_summary <- data_common |>
   group_by(case_short, cluster_short, ess_short) |> 
   summarise(mean_score = max(mean_score),
             sd_score = max(sd_score),

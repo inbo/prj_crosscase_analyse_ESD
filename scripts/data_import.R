@@ -91,6 +91,7 @@ stopifnot(
 
 data_ana <- data_orig |>
   filter(!is.na(score_raw)) |>
+  filter(!(is.na(respondent) & case == "Maarkebeek")) |>  #fout in data
   mutate(score = ceiling(score_raw),
          f_score = ordered(score),
          case_short = factor(case_short,
@@ -108,73 +109,145 @@ data_ana <- data_orig |>
 # First summarize to get counts per unique combination
 # Second summarize to get weighted means and standard errors
 
-n_resp_per_case <- data_ana |>
+n_resp_per_case_ess_unique <- data_ana |>
   group_by(case_short, ess_short, ess_unique) |>
-  summarise(n_resp = n(), .groups = "drop_last") |>
-  summarise(n_resp = max(n_resp), .groups = "drop_last") |>
-  summarise(n_resp_tot_case = max(n_resp))
+  summarise(n_respondents = n(), .groups = "drop_last")
+
+n_resp_per_case_ess <- n_resp_per_case_ess_unique |>
+  summarise(n_respondents = max(n_respondents), .groups = "drop_last")
+
+n_resp_per_case <- n_resp_per_case_ess |>
+  summarise(n_respondents = max(n_respondents), .groups = "drop")
 
 
-data_wg <-
+data_wijgel <-
   data_ana |>
   filter(substring(case_short, 1, 3) %in% c("Wij", "Gel")) |>
-  left_join(n_resp_per_case, join_by(case_short)) |>
-  group_by(case, case_short, ess_cluster, cluster_short, ess_short, ess_common) |>
-  summarise(mean_unique = mean(score, na.rm = TRUE),
-            n_resp = max(n_resp_tot_case),
-            sd_unique = sd(score, na.rm = TRUE),
-            se_unique = sd(score, na.rm = TRUE) / sqrt(n()),
+  group_by(case_short, cluster_short, ess_short, ess_unique, score, f_score) |>
+  summarise(aantal = n(), .groups = "drop") |>
+  group_by(case_short, cluster_short, ess_short) |>
+  mutate(n_tot = sum(aantal)) |>
+  group_by(case_short, cluster_short, ess_short, score, f_score) |>
+  summarise(n_responses = max(n_tot),
+            aantal = sum(aantal),
             .groups = "drop") |>
-  group_by(case, case_short, ess_cluster, cluster_short, ess_short, ess_common) |>
-  summarise(m_score = sum(mean_unique * n_resp) / sum(n_resp),
-            se_score = sqrt(sum(se_unique^2 * n_resp^2) / sum(n_resp^2)),
-            sd_score = se_score * sqrt(n_resp),
-            n_respondents = mean(n_resp),
+  left_join(n_resp_per_case_ess, join_by(case_short, ess_short)) |>
+  mutate(frac_score = aantal / n_responses)
+
+
+
+
+#wat met NA values, misschien n_respondents anders berekenen
+data_indiv <-
+  data_ana |>
+  filter(!(substring(case_short, 1, 3) %in% c("Wij", "Gel"))) |>
+  group_by(case_short, cluster_short, ess_short, ess_unique, respondent, score, f_score) |>
+  summarise(aantal = n(), .groups = "drop") |>
+  group_by(case_short, cluster_short, ess_short, respondent) |>
+  mutate(n_tot = sum(aantal)) |>
+  group_by(case_short, cluster_short, ess_short, respondent, score, f_score) |>
+  summarise(n_responses_indiv = max(n_tot),
+            aantal = sum(aantal),
             .groups = "drop") |>
-  mutate(f_score = round(m_score))
+  left_join(n_resp_per_case_ess, join_by(case_short, ess_short)) |>
+  mutate(frac_score_indiv = aantal / n_responses_indiv)
+
+
+# terug op case niveau
+data_indiv_aggregated <- data_indiv |>
+  group_by(case_short, cluster_short, ess_short, score, f_score, n_respondents) |>
+  summarise(
+    aantal = sum(frac_score_indiv),
+    .groups = "drop"
+  ) |>
+  mutate(frac_score = aantal / n_respondents)
+
+
+data_avg <- bind_rows(data_wijgel, data_indiv_aggregated)
+
+
+
+  # left_join(n_resp_per_case, join_by(case_short)) |>
+  # group_by(case, case_short, ess_cluster, cluster_short, ess_short, ess_common) |>
+  # summarise(mean_unique = mean(score, na.rm = TRUE),
+  #           n_resp = max(n_resp_tot_case),
+  #           sd_unique = sd(score, na.rm = TRUE),
+  #           se_unique = sd(score, na.rm = TRUE) / sqrt(n()),
+  #           .groups = "drop") |>
+  # group_by(case, case_short, ess_cluster, cluster_short, ess_short, ess_common) |>
+  # summarise(m_score = sum(mean_unique * n_resp) / sum(n_resp),
+  #           se_score = sqrt(sum(se_unique^2 * n_resp^2) / sum(n_resp^2)),
+  #           sd_score = se_score * sqrt(n_resp),
+  #           n_respondents = mean(n_resp),
+  #           .groups = "drop") |>
+  # mutate(f_score = round(m_score))
 
 #Data per respondent for which individual measurements are available
-data_rest_indiv <-
-  data_ana |>
-  filter(!substring(case, 1, 3) %in% c("Wij", "Gel"),
-         !is.na(score)) |>
-  left_join(n_resp_per_case, join_by(case_short)) |>
-  group_by(case, case_short, ess_cluster, cluster_short,
-           ess_short, ess_common, respondent) |>
-  summarise(n_respondents = 1,
-            n_ess_unique = n(),
-            m_score_i = mean(score, na.rm = TRUE),
-            sd_m_score = sd(score, na.rm = TRUE),
-            se_m_score = sd(score, na.rm = TRUE) / sqrt(n()),
-            .groups = "drop") |>
-  mutate(f_score = round(m_score_i))
+# data_rest_indiv <-
+#   data_ana |>
+#   filter(!substring(case, 1, 3) %in% c("Wij", "Gel"),
+#          !is.na(score)) |>
+#   left_join(n_resp_per_case, join_by(case_short)) |>
+#   group_by(case, case_short, ess_cluster, cluster_short,
+#            ess_short, ess_common, respondent) |>
+#   summarise(n_respondents = 1,
+#             n_ess_unique = n(),
+#             m_score_i = mean(score, na.rm = TRUE),
+#             sd_m_score = sd(score, na.rm = TRUE),
+#             se_m_score = sd(score, na.rm = TRUE) / sqrt(n()),
+#             .groups = "drop") |>
+#   mutate(f_score = round(m_score_i))
+#
+# #Data averaged over individual respondent
+# data_rest <-
+#   data_rest_indiv |>
+#   replace_na(list(se_m_score = 0, sd_m_score = 0)) |>
+#   group_by(case, case_short, ess_cluster, cluster_short,
+#            ess_short, ess_common) |>
+#   summarise(n_respondents = n(),
+#             n_ess_unique = mean(n_ess_unique),
+#             m_score = sum(m_score_i)/n_respondents,
+#             var_within = sum(n_respondents * sd_m_score^2) / sum(n_respondents),
+#             var_between = var(m_score_i),
+#             .groups = "drop") |>
+#   mutate(sd_score = sqrt((var_within/n_ess_unique + var_between)),
+#          se_score = sd_score / sqrt(n_respondents),
+#          f_score = round(m_score))
+#
+# #Combine data
+# data_avg <- bind_rows(data_wg, data_rest)
 
-#Data averaged over individual respondent
-data_rest <-
-  data_rest_indiv |>
-  replace_na(list(se_m_score = 0, sd_m_score = 0)) |>
-  group_by(case, case_short, ess_cluster, cluster_short,
-           ess_short, ess_common) |>
-  summarise(n_respondents = n(),
-            n_ess_unique = mean(n_ess_unique),
-            m_score = sum(m_score_i)/n_respondents,
-            var_within = sum(n_respondents * sd_m_score^2) / sum(n_respondents),
-            var_between = var(m_score_i),
-            .groups = "drop") |>
-  mutate(sd_score = sqrt((var_within/n_ess_unique + var_between)),
-         se_score = sd_score / sqrt(n_respondents),
-         f_score = round(m_score))
 
-#Combine data
-data_avg <- bind_rows(data_wg, data_rest)
+### verkennende data
+
+max_possible_sd <- 2 #sd(c(rep(-1, 100000), rep(3, 100000)))
+
+data_common <- data_ana |>
+  group_by(case_short, cluster_short, ess_short, ess_unique, f_score) |>
+  summarise(aantal = n(), .groups = "drop") |>
+  group_by(case_short, cluster_short, ess_short) |>
+  mutate(n_tot = sum(aantal),
+         n_pers = max(aantal)) |>
+  group_by(case_short, cluster_short, ess_short, f_score, n_pers) |>
+  summarise(n_resp = max(n_tot),
+            aantal = sum(aantal),
+            .groups = "drop") |>
+  mutate(fr_score = aantal / n_resp,
+         nval_score = as.numeric(as.character(f_score))) |>
+  group_by(case_short, cluster_short, ess_short, n_pers) |>
+  mutate(mean_score = sum(fr_score * nval_score),
+         sd_score = sd(rep(nval_score, rep(aantal))),
+         consensus = 1 - (sd_score / max_possible_sd))
+
 
 # wegschrijven gegenereerde data
 
 if (!dir.exists("interim")) {
   dir.create("interim")
 }
-write_csv2(data_orig, file = here("interim", "data_orig.csv"))
-saveRDS(   data_raw,  file = here("interim", "data_raw.rds"))
-saveRDS(   data_ana,  file = here("interim", "data_ana.rds"))
-saveRDS(   data_avg,  file = here("interim", "data_avg.rds"))
+write_csv2(data_orig,   file = here("interim", "data_orig.csv"))
+saveRDS(   data_raw,    file = here("interim", "data_raw.rds"))
+saveRDS(   data_ana,    file = here("interim", "data_ana.rds"))
+saveRDS(   data_avg,    file = here("interim", "data_avg.rds"))
+saveRDS(   data_common, file = here("interim", "data_common.rds"))
 
