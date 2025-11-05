@@ -1,0 +1,436 @@
+
+# Cumulatief logistisch model
+<!--- 
+Dit is volgens mij het meest correcte model om de data te modelleren. Er worden geen aannames gedaan over de verdeling van de data. Er wordt berekend wat de cumulatieve kans is op een score. Dit betekent dat het model de kans berekent dat een ecosysteemdienst een bepaalde score of lager heeft, in plaats van een specifieke score.
+
+```{r simplfied_cumlogit_model}
+#| cache: true
+#ignore resp+ondent-level information for 9/14 regions
+# Simplified cumulative logit model
+model_simpcl <- brm(
+  scorecum ~ ess_short + (1 | case),
+  data = data_ana,
+  family = cumulative("logit"),
+  chains = 4,
+  iter = 2000,
+  cores = 4
+)
+save(model_simpcl, file = "models/simplified_cumlogit_model.RData")
+```
+
+```{r simpcl_pred}
+
+invisible(summary(model_simpcl))
+#plot(model_simpcl)
+
+
+# Create newdata for each ess_common
+newdata_simpcl <- data_ana |> transmute(ess_short, cluster_short,  case = "global") |>
+  distinct() |>
+  mutate(rownr = row_number())
+
+fitted_summary <- fitted(model_simpcl, newdata = newdata_simpcl, summary = TRUE, allow_new_levels = TRUE)
+fitted_summary_s <-  fitted(model_simpcl, newdata = newdata_simpcl, summary = FALSE, allow_new_levels = TRUE)
+summary_01 <- fitted_summary_s[,,1]
+summary_12 <- fitted_summary_s[,,1] + fitted_summary_s[,,2]
+summary_13 <- fitted_summary_s[,,1] + fitted_summary_s[,,2] + fitted_summary_s[,,3]
+summary_14 <- fitted_summary_s[,,1] + fitted_summary_s[,,2] + fitted_summary_s[,,3] + fitted_summary_s[,,4]
+summary_15 <- fitted_summary_s[,,1] + fitted_summary_s[,,2] + fitted_summary_s[,,3] + fitted_summary_s[,,4] + fitted_summary_s[,,5]
+
+
+
+pred01 <- t(apply(summary_01, 2, quantile_and_mean, probs = c(0.025,0.500,0.975), na.rm = TRUE)) |>
+  as.data.frame() |>
+  mutate(value = "P(-1)",
+         ess_short = newdata_simpcl |> pull(ess_short),
+         cluster_short = newdata_simpcl |> pull(cluster_short))
+
+pred12 <- t(apply(summary_12, 2, quantile_and_mean, probs = c(0.025,0.500,0.975), na.rm = TRUE)) |>
+  as.data.frame() |>
+  mutate(value = "P(<=0)",
+         ess_short = newdata_simpcl |> pull(ess_short),
+         cluster_short = newdata_simpcl |> pull(cluster_short))
+
+pred13 <- t(apply(summary_13, 2, quantile_and_mean, probs = c(0.025,0.500,0.975), na.rm = TRUE)) |>
+  as.data.frame() |>
+  mutate(value = "P(<=1)",
+         ess_short = newdata_simpcl |> pull(ess_short),
+         cluster_short = newdata_simpcl |> pull(cluster_short))
+
+pred14 <- t(apply(summary_14, 2, quantile_and_mean, probs = c(0.025,0.500,0.975), na.rm = TRUE)) |>
+  as.data.frame() |>
+  mutate(value = "P(<=2)",
+         ess_short = newdata_simpcl |> pull(ess_short),
+         cluster_short = newdata_simpcl |> pull(cluster_short))
+
+pred15 <- t(apply(summary_15, 2, quantile_and_mean, probs = c(0.025,0.500,0.975), na.rm = TRUE)) |>
+  as.data.frame() |>
+  mutate(value = "P(<=3)",
+         ess_short = newdata_simpcl |> pull(ess_short),
+         cluster_short = newdata_simpcl |> pull(cluster_short))
+
+predicties_clm <- bind_rows(pred01, pred12, pred13, pred14, pred15) |>
+  mutate(value = factor(value, levels = rev(c("P(-1)", "P(<=0)", "P(<=1)", "P(<=2)", "P(<=3)"))))
+
+estimates_clm <- fitted_summary[,1,] |>
+  as.data.frame() |>
+  mutate(ess_short = newdata_simpcl |> pull(ess_short),
+         cluster_short = newdata_simpcl |> pull(cluster_short)) |>
+  pivot_longer(cols = -c(ess_short, cluster_short), names_to = "value", values_to = "estimate") |>
+  mutate(value = factor(value,
+                        levels = c("P(Y = 5)", "P(Y = 4)", "P(Y = 3)", "P(Y = 2)", "P(Y = 1)"),
+                        labels = c("P(<=3)","P(<=2)","P(<=1)","P(<=0)","P(-1)")))
+
+
+
+ggplot(estimates_clm, aes(x = ess_short, y = estimate, fill = value)) +
+  geom_bar(stat = "identity", position = "stack") +
+  geom_errorbar(data = predicties_clm,
+                aes(ymin = `2.5%`, ymax = `97.5%`, x = ess_short, y = `50%`),
+                position = position_dodge(0.8)) +
+  geom_point(data = predicties_clm,
+             aes(x = ess_short, y = avg),
+             position = position_dodge(0.8)) +
+  facet_wrap(~cluster_short, scales = "free_x", nrow = 2) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 0.3, vjust = 0.5)) +
+  scale_fill_manual(values = rev(RColorBrewer::brewer.pal(5, "RdYlBu"))) +
+  labs(title = "Estimated score of ESS  with 95% Uncertainty Intervals on cumulative value",
+       x = "ESS",
+       y = "Estimated Probability",
+       fill = "Score")
+ggsave("models/simplified_cumlogit_model_estimates.png", width = 7, height = 10)
+```
+
+```{r simpcl_ran}
+
+VarCorr(model_simpcl)
+random_effects <- ranef(model_simpcl)
+# Extract random effects for each case
+ranef_case <- random_effects$case[,,"Intercept"] |>
+  as_tibble(rownames = "case") |>
+  mutate(case = reorder(case, Estimate, mean, decreasing = TRUE))
+
+ggplot(ranef_case, aes(x = case, y = Estimate, ymin = Q2.5, ymax = Q97.5)) +
+  geom_point() +
+  geom_errorbar() +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  labs(title = "Random Effects for Cases", x = "Case", y = "Random Effect Estimate") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
+```
+
+```{r simpcl_consensus}
+
+pred_probs <- fitted(model_simpcl, newdata = newdata_simpcl, summary = FALSE, allow_new_levels = TRUE)
+
+consensus_scores <- apply(pred_probs, c(1,2), function(x) 1 - agrmt::Leik(x)) |>
+  as_tibble()
+colnames(consensus_scores) <- unique(data_ana$ess_short)
+consensus_scores <- pivot_longer(consensus_scores, cols = everything(), names_to = "ess_short", values_to = "consensus_score")
+consensus_scores <- consensus_scores |>
+  left_join(ess_def |>
+              select(ess_short, cluster_short),
+            by = "ess_short") |>
+  mutate(ess_short = factor(ess_short, levels = ess_short_ordered))
+
+
+q_m <- function(x) as_tibble(t(quantile_and_mean(x)))
+
+consensus_scores_plt <- consensus_scores |>
+  group_by(ess_short, cluster_short) |>
+  reframe(q_m(consensus_score))
+
+ggplot(consensus_scores_plt, aes(x = ess_short, y = avg, ymin = `2.5%`, ymax = `97.5%`, color = cluster_short)) +
+  geom_point() +
+  geom_errorbar() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  ylim(0, 1) +
+  labs(title = "Consensus Scores by ESS Common", x = "ESS Common", y = "Consensus Score")
+
+
+consensus_mean_scores <- consensus_scores |>
+  group_by(ess_short, cluster_short) |>
+  summarise(consensus_mean = mean(consensus_score, na.rm = TRUE), .groups = "drop") |>
+  mutate(ess_short = factor(ess_short, levels = ess_short_ordered))
+
+avgscores <- fitted_summary[, "Estimate", ] |>
+  as.data.frame() |>
+  mutate(ess_short = newdata_simpcl |> pull(ess_short),
+         cluster_short = newdata_simpcl |> pull(cluster_short)) |>
+  rowwise() |>
+  mutate(avg = sum(c(-1:3) * c_across(starts_with("P(Y ="))))
+
+plotdata <- consensus_mean_scores |>
+  left_join(avgscores, by = c("ess_short", "cluster_short"))
+
+
+ggplot(plotdata, aes(x = ess_short, y = avg, color = cluster_short, size = consensus_mean)) +
+  geom_point() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  labs(title = "Average Scores and Consensus Scores by ESS Common",
+       x = "ESS Common",
+       y = "Average Score",
+       color = "Cluster",
+       size = "Consensus") +
+  scale_size_continuous(range = c(4, 8))
+
+
+
+```
+
+```{r simpcl_consensus_case}
+
+newdata_case <- data_ana |>
+  transmute(ess_short, cluster_short, case) |>
+  distinct() |>
+  mutate(rownr = row_number())
+
+pred_probs_case <- fitted(model_simpcl, newdata = newdata_case, summary = FALSE, allow_new_levels = TRUE)
+# Calculate consensus scores for each case
+
+pred_probs_case_s <- fitted(model_simpcl, newdata = newdata_case, summary = TRUE, allow_new_levels = TRUE)
+
+avgscores_case <- pred_probs_case_s[, "Estimate", ] |>
+  as.data.frame() |>
+  mutate(ess_short = newdata_case |> pull(ess_short),
+         cluster_short = newdata_case |> pull(cluster_short),
+         case = newdata_case |> pull(case))|>
+  rowwise() |>
+  mutate(avg = sum(c(-1:3) * c_across(starts_with("P(Y ="))))
+
+
+
+
+leik_case <- NULL
+for (j in 1:ncol(pred_probs_case)) {
+  #print(j)
+  scores <- pred_probs_case[, j, ]
+  score <- apply(scores, 1, function(x) 1 - Leik(x))
+  avg_score <- mean(score, na.rm = TRUE)
+  q025_score <- quantile(score, 0.025, na.rm = TRUE)
+  q075_score <- quantile(score, 0.975, na.rm = TRUE)
+  rv <- data.frame(ess_short = newdata_case$ess_short[j],
+                   cluster_short = newdata_case$cluster_short[j],
+                   case = newdata_case$case[j],
+                   avg_leik = avg_score,
+                   q025_leik = q025_score,
+                   q975_leik = q075_score)
+  leik_case <- bind_rows(leik_case, rv)
+}
+
+
+ggplot(leik_case, aes(x = ess_short, y = avg_leik, ymin = q025_leik, ymax = q975_leik, color = cluster_short)) +
+  geom_point() +
+  geom_errorbar() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  labs(title = "Consensus Scores by ESS Common and Case", x = "ESS Common", y = "Consensus Score") +
+  scale_color_manual(values = inbo_palette) +
+  facet_wrap(~case)
+
+
+#nu nog de globale gemiddeldes toevoegen (errorbars kunnen hier niet, maar zouden ook nog kunnen)
+
+plotdata_case <- avgscores_case |>
+  left_join(leik_case, by = c("ess_short", "cluster_short", "case"))
+
+ggplot(plotdata_case, aes(x = ess_short, y = avg, color = cluster_short, size = avg_leik)) +
+  geom_point() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  labs(title = "Average Scores and Consensus Scores by ESS Common and Case",
+       x = "ESS Common",
+       y = "Average Score",
+       color = "Cluster",
+       size = "Consensus") +
+  scale_size_continuous(range = c(2, 4)) +
+  facet_wrap(~case)
+
+```
+
+--->
+
+<!---
+
+### Hurdle model
+
+```{r simplified_hurdle_model}
+#| cache: true
+model_simphurdle <- brm(
+    bf(isnegative ~ ess_short + (1|case),
+       nresp  ~ score * ess_short + (1|case)),
+    data = data_cum, # same expanded data as above
+    family = hurdle_negbinomial(),
+    chains = 4,
+    iter = 2000,
+    cores = 4
+    )
+save(model_simphurdle, file = "models/simplified_hurdle_model.RData")
+
+```
+
+--->
+
+## Cumulatief logistisch model op de individuele responses
+
+<!--
+
+We gaan nu de volledige modellen opstellen, waarbij we rekening houden met de respondent-level informatie en de verschillende regio's. We zullen zowel een cumulatief logistisch model als een hurdle model opstellen.
+
+### Cumulatief logistisch model
+
+```{r cumlogit_model}
+
+model <- brm(
+  score_cumlogit ~ ess_short + (ess_short | case) + (1 | respondent),
+  data = data_ana,
+  family = cumulative("logit"),
+  chains = 4,
+  iter = 2000,
+  cores = 4
+)
+
+save(model, file = "models/cumlogit_first_model.RData")
+```
+
+### Hurdle model
+
+```{r hurdle_model}
+hurdle_model <- brm(
+  bf(
+    # Hurdle part: probability of non-negative rating
+    ispositive ~ ess_short + (ess_short | case) + (1 | respondent),
+    # Positive part: level of positivity given non-negative
+    scorehu ~ ess_short + (ess_short | region) + (1 | respondent)
+  ),
+  data = combined_data,
+  family = hurdle_negbinomial(),
+  chains = 4,
+  iter = 2000,
+  cores = 4
+)
+save(hurdle_model, file = "models/hurdle_first_model.Rdata")
+```
+
+## Modelformulering vooor hurdle model met respondent-level informatie
+
+```{r}
+
+#Eerst nog eens thesis Ilja nalezen
+
+data_ana <- data_processed %>%
+  mutate(score = score + 1) # Omgaan met nullen in de score
+#Let op, data nog aanpassen aan het feit dat er net altijd een respondent gekend is, en dat er moet gewogen worden voor de cases met het aantal respondenten
+
+
+#Op subset van de data voor enkel de cases waarvoor respondenten gekend zijn
+
+library(brms)
+# Definieer het model
+model <- brm(
+  bf(
+    # Binaire component
+    score ~ 1,
+    # Negatief binomiaal component
+    score ~ ess_short + (1|case/respondent),
+    family = hurdle_negbinomial()
+  ),
+  data = data,
+  prior = c(
+    set_prior("normal(0, 5)", class = "b"),
+    set_prior("normal(0, 5)", class = "Intercept")
+  ),
+  chains = 4,
+  iter = 2000,
+  warmup = 1000,
+  control = list(adapt_delta = 0.95)
+)
+# Samenvatting van het model
+summary(model)
+# Visualiseer de resultaten
+plot(model)
+# Voorspel de waarden
+predictions <- posterior_predict(model)
+
+```
+
+````{=html}
+<!--
+# Visualiseer de voorspellingen
+hist(predictions, main = "Posterior Predictions", xlab = "Predicted Values", breaks = 30)
+# Opslaan van het model
+saveRDS(model, file = "hurdle_model.rds")
+# Laad het model
+loaded_model <- readRDS("hurdle_model.rds")
+# Voorspel nieuwe waarden
+new_data <- data.frame(region = unique(data$region))
+predictions_new <- posterior_predict(loaded_model, newdata = new_data)
+# Visualiseer de nieuwe voorspellingen
+hist(predictions_new, main = "Posterior Predictions for New Data", xlab = "Predicted Values", breaks = 30)
+# Opslaan van de voorspellingen
+write.csv(predictions_new, file = "predictions_new.csv", row.names = FALSE)
+# Evaluatie van het model
+library(loo)
+loo_result <- loo(model)
+# Samenvatting van de LOO-criteria
+print(loo_result)
+# Visualiseer de LOO-criteria
+plot(loo_result)
+# Opslaan van de LOO-criteria
+saveRDS(loo_result, file = "loo_result.rds")
+# Laad de LOO-criteria
+loaded_loo_result <- readRDS("loo_result.rds")
+# Visualiseer de geladen LOO-criteria
+plot(loaded_loo_result)
+# Opslaan van de resultaten
+saveRDS(list(model = model, predictions = predictions, loo_result = loo_result), file = "model_results.rds")
+# Laad de resultaten
+loaded_results <- readRDS("model_results.rds")
+# Visualiseer de geladen resultaten
+plot(loaded_results$model)
+# Voorspel de waarden met de geladen resultaten
+predictions_loaded <- posterior_predict(loaded_results$model)
+# Visualiseer de voorspellingen van de geladen resultaten
+hist(predictions_loaded, main = "Posterior Predictions from Loaded Model", xlab = "Predicted Values", breaks = 30)
+# Opslaan van de voorspellingen van de geladen resultaten
+write.csv(predictions_loaded, file = "predictions_loaded.csv", row.names = FALSE)
+# Evaluatie van de voorspellingen
+library(ggplot2)
+ggplot(data = data.frame(predictions = predictions_loaded), aes(x = predictions)) +
+  geom_histogram(bins = 30, fill = "blue", alpha = 0.7) +
+  labs(title = "Histogram of Predictions from Loaded Model", x = "Predicted Values", y = "Frequency") +
+  theme_minimal()
+# Opslaan van de visualisatie
+ggsave("predictions_histogram.png", width = 8, height = 6)
+# Laad de visualisatie
+predictions_histogram <- png::readPNG("predictions_histogram.png")
+# Visualiseer de geladen histogram
+grid::grid.raster(predictions_histogram)
+# Opslaan van de geladen histogram
+png::writePNG(predictions_histogram, "predictions_histogram_loaded.png")
+# Laad de geladen histogram
+loaded_predictions_histogram <- png::readPNG("predictions_histogram_loaded.png")
+# Visualiseer de geladen histogram
+grid::grid.raster(loaded_predictions_histogram)
+# Opslaan van de geladen histogram
+png::writePNG(loaded_predictions_histogram, "predictions_histogram_final.png")
+# Laad de finale histogram
+final_predictions_histogram <- png::readPNG("predictions_histogram_final.png")
+# Visualiseer de finale histogram
+grid::grid.raster(final_predictions_histogram)
+# Opslaan van de finale histogram
+png::writePNG(final_predictions_histogram, "predictions_histogram_final.png")
+# Laad de finale histogram
+final_predictions_histogram <- png::readPNG("predictions_histogram_final.png")
+# Visualiseer de finale histogram
+grid::grid.raster(final_predictions_histogram)
+# Opslaan van de finale histogram
+png::writePNG(final_predictions_histogram, "predictions_histogram_final.png")
+# Laad de finale histogram
+final_predictions_histogram <- png::readPNG("predictions_histogram_final.png")
+# Visualiseer de finale histogram
+grid::grid.raster(final_predictions_histogram)
+# Opslaan van de finale histogram
+```
+-->
+````
+--->
+

@@ -13,11 +13,11 @@ project:
 book:
   chapters:
     - index.qmd
-    - intro.qmd
     - summary.qmd
+    - intro.qmd
     - data_verkenning.qmd
-#    - modellering_vereenvoudigd.qmd
-#    - modellering_respondentlevel.qmd
+    - modellering_gemiddeld.qmd
+    #- modellering_cumulatief.qmd
     - references.qmd
   downloads: pdf
   open-graph: true

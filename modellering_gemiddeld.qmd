@@ -1,0 +1,368 @@
+# Modellering op basis de gemiddelde score
+
+## Inleiding
+
+```{r dataread}
+#|message: false
+#|cache: true
+library(tidyverse)
+library(brms)
+library(agrmt)
+library(pheatmap)
+library(cluster)
+library(dplyr)
+library(emmeans)
+library(corrplot)
+library(INBOtheme)
+
+conflicted::conflict_prefer_all(c("dplyr"), quiet = TRUE)
+conflicted::conflict_prefer_all(c("purrr"), quiet = TRUE)
+conflicted::conflict_prefer_all(c("tidyr"), quiet = TRUE)
+conflicted::conflict_prefer_all(c("brms"), quiet = TRUE)
+
+inbo_palette <- INBOtheme::inbo_palette()
+inbostyle_colors <- colorRampPalette(colors = inbo_palette()[1:3])
+
+# Functie om kwantielen en gemiddelde te berekenen
+quantile_and_mean <- function(x, probs = c(0.025, 0.5, 0.975), na.rm = TRUE, avg = TRUE) {
+  quantiles <- quantile(x, probs = probs, na.rm = na.rm)
+  mean_val <- mean(x, na.rm = na.rm)
+  return(if(!avg) quantiles else c(quantiles, avg = mean_val))
+}
+
+# laad hulpdata
+
+ess_def <- readr::read_csv2("data/ess_definition.csv", 
+                            show_col_types = FALSE)
+
+# Laad de data
+
+data_ana <- readr::read_csv2("interim/data_ana.csv",
+                             show_col_types = FALSE)
+data_agg <- readRDS("interim/data_agg.rds")
+data_avg <- readRDS("interim/data_avg.rds")
+
+data_cml <- data_agg |> 
+  arrange(case_short, cluster_short, ess_short, f_score) |> 
+  group_by(case_short, cluster_short, ess_short) |> 
+  mutate(resp_cml = cumsum(n_responses),
+         frac_cml = cumsum(n_responses) / sum(n_responses))
+
+# Laad de berekende modellen
+model_simpmeans <- readRDS("models/simplified_weighted_means.RDS")
+
+
+```
+
+## Analyses op dataset zelf
+
+### similariteitsprofiel op basis van gemiddeldes
+
+Het similariteitsprofiel is hier als volgt gedefinieerd:
+
+- Neem het gemiddelde per case per ess
+-Normeer alle waarden door het gemiddelde over de cases respectievelijk ess heen af te trekken
+- Bereken een euclidische afstandsmatrix
+- Deel deze door de maximale gevonden afstand voor relatieve afstand
+- Doe 1 - relatieve afstand om de similariteit te vinden.
+
+
+```{r similaritydata}
+
+case_profiles <- data_agg |> 
+  group_by(case_short, ess_short) |> 
+  summarise(mean_score = sum(score * frac_score, na.rm = TRUE),
+            .groups = "drop") |> 
+  pivot_wider(names_from = ess_short, values_from = mean_score)
+
+#case profile matrix
+case_profile_detrended <- case_profiles |> 
+  column_to_rownames(var = "case_short") |>
+  as.matrix() |> 
+  (\(m) sweep(m, 2, colMeans(m, na.rm = TRUE), "-"))() 
+case_profile_detrended[is.na(case_profile_detrended)] <- 0
+case_dist <- as.matrix(dist(case_profile_detrended, method = "euclidean"))
+case_similarity <- 1 - case_dist / max(case_dist)
+
+#ess profile matrix
+ess_profile_detrended <- case_profiles |> 
+  column_to_rownames(var = "case_short") |>
+  as.matrix() |> 
+  t() |>
+  (\(m) sweep(m, 2, colMeans(m, na.rm = TRUE), "-"))() 
+ess_profile_detrended[is.na(ess_profile_detrended)] <- 0
+ess_dist <- as.matrix(dist(ess_profile_detrended, method = "euclidean"))
+ess_similarity <- 1 - ess_dist / max(ess_dist)
+
+```
+
+```{r fig-similaritycase}
+#|fig.cap: "Similarity between cases among ESS answers"
+pheatmap(case_similarity,
+         cluster_cols = FALSE, cluster_rows = FALSE,
+         color = colorRampPalette(c("red", "white", "blue"))(100))
+
+```
+
+```{r fig-similarityess}
+#|fig.cap: "Similarity between ESS among case answers"
+pheatmap(ess_similarity,
+         cluster_cols = FALSE, cluster_rows = FALSE,
+         color = colorRampPalette(c("red", "white", "blue"))(100))
+```
+
+
+```{r regionalnetworks}
+#|include: false
+#|eval: false
+library(igraph)
+library(ggraph)
+
+# Create network from high similarities (threshold = 0.6, adjust as needed)
+network_matrix <- ess_similarity
+network_matrix[network_matrix < 0.6] <- 0
+diag(network_matrix) <- 0
+
+# Create network
+network <- graph_from_adjacency_matrix(network_matrix, 
+                                     weighted = TRUE, 
+                                     mode = "undirected")
+
+# Network plot
+ggraph(network, layout = "fr") + 
+  geom_edge_link(aes(width = weight, alpha = weight)) +
+  geom_node_point(size = 4, color = "steelblue") +
+  geom_node_text(aes(label = name), repel = TRUE, size = 3) +
+  scale_edge_width(range = c(0.5, 3)) +
+  theme_void() +
+  labs(title = "Regional Similarity Network")
+
+```
+
+
+```{r fig-nmds}
+#|fig.cap: "Similarity in answers on ESS - MDS Plot"
+mds <- cmdscale(1 - ess_similarity, k = 2)
+mds_df <- data.frame(
+  region = rownames(ess_similarity),
+  MDS1 = mds[, 1],
+  MDS2 = mds[, 2]
+)
+
+ggplot(mds_df, aes(x = MDS1, y = MDS2, label = region)) +
+  geom_point(size = 3, color = "steelblue") +
+  ggrepel::geom_text_repel(hjust = 0, vjust = 0, nudge_x = 0.01, nudge_y = 0.01) +
+  theme_minimal() +
+  labs(x = "MDS Dimension 1", y = "MDS Dimension 2")
+```
+
+### Consensus op basis van ordinale categorieën
+
+Hoe de mensen een ecosysteemdienst waarderen, is niet voor iedere case dezelfde en verschilt ook van respondent tot respondent. We kunnen de overeenstemming tussen respondenten binnen een case bekijken door de Leik's agreement score te berekenen. *(Leik, R. (1966) A measure of ordinal consensus, Pacific Sociological Review 9(2):85-90.)* via het package `agrmt`. Deze score geeft aan hoe goed de respondenten het eens zijn over de waardering van een ecosysteemdienst.
+
+De keuze is gevallen op de Leik score omdat deze score goed werkt voor ordinale data en de scores van -1 tot 3 zijn ordinaal. De Leik score is een maat voor de overeenstemming tussen respondenten, waarbij 0 betekent dat er geen overeenstemming is en 1 betekent dat er volledige overeenstemming is.
+
+Dus als iedereen dezelfde score geeft, is de Leik score 1. Als de helft het minimum als score geeft en de andere helft het maximum, is de Leik score 0. De Leik score zal het beoordelen van naburige scores minder sterk afstraffen dan als de klasses verder uiteen liggen. Een Leik score van 0.5 krijg je bijvoorbeeld als de helft de tweede en de andere helft de vierde score geeft in een scoresysteem met 5 klassen.
+
+```{r tbl-Leik_agreement_example}
+#| tbl.cap: "Leik's Agreement Scores for ESS Common"
+mat <- rbind(c(0,0,20,0,0),
+             c(0,5,10,5,0),
+             c(0,10,10,0,0),
+             c(0,7,7,7,0),
+             c(0,10,0,10,0),
+             c(7,0,7,0,7),
+             c(10,0,0,0,10))
+colnames(mat) <- c(-1, 0, 1, 2, 3)
+mat <- bind_cols(mat, Leikscore = apply(mat, 1, function(x) 1 - agrmt::Leik(x)))
+knitr::kable(mat, digits = 2)
+
+```
+
+```{r agreement_general}
+
+data_work <- data_agg |> 
+  arrange(case_short, ess_short, f_score)
+
+#consensus per case per ess
+data_consensus <- data_work |> 
+  group_by(case_short, cluster_short, ess_short) |>
+  complete(score = c(-1, 0, 1, 2, 3), 
+           fill = list(n_responses = 0)) |> 
+  summarise(consensus = 1 - agrmt::Leik(n_responses),
+            tot_responses = sum(n_responses),
+            .groups = "drop",
+            )
+
+#consensus per ess over de cases heen
+data_consensus_ess <- data_work |> 
+  group_by(cluster_short, ess_short, score) |>
+  summarise(n_responses = sum(n_responses, na.rm = TRUE),
+            .groups = "drop") |> 
+  complete(score = c(-1, 0, 1, 2, 3), 
+           fill = list(n_responses = 0)) |> 
+  group_by(ess_short, cluster_short) |> 
+  summarise(consensus = 1 - agrmt::Leik(n_responses),
+            tot_responses = sum(n_responses),
+            .groups = "drop",
+            )
+```
+
+```{r fig-consensus-detail}
+ggplot(data_consensus, aes(x = ess_short, y = consensus, color = cluster_short)) +
+  geom_point() +
+  facet_wrap(~case_short) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  scale_color_manual(values = inbostyle_colors(14)) +
+  labs(x = "ESS common", y = "Consensus") 
+       
+       
+```
+
+```{r fig-consensus-marginal}
+ggplot(data_consensus_ess,
+       aes(x = ess_short, y = consensus, color = cluster_short)) +
+  geom_point() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  scale_color_manual(values = inbostyle_colors(8)) +
+  labs(x = "ESS common", y = "Consensus")
+```
+
+
+## Modellen van het gemiddelde zonder respondent-level informatie
+
+
+We gaan een aantal versimpelde modellen maken, waarbij we de respondent-level informatie negeren en alleen werken met de case-level informatie. Dit is handig voor een eerste verkenning van de data en om te zien of er duidelijke patronen zijn. Voor de beperkte aantal cases met wel individuele data kunnen we nog eens een aparte analyse doen om te zien of er zaken verschillend uitkomen.
+
+### Gewogen gemiddelden
+
+In het gewogen gemiddelde model, beschouwen we de gemiddelde score per ecosysteemdienst, gewogen naar het aantal respondenten per case. Dit model is eenvoudig en geeft een eerste indicatie van de gewensteheid van de ecosysteemdiensten.
+
+Hiervoor wordt een eenvoudig gaussiaans random intercept model gebruikt, alhoewel via een bayesiaanse schatting via het `brms` package.
+
+De reden voor een bayesiaanse schatting is dat we de onzekerheid en predicties rond de schattingen eenvoudiger kunnen bepalen dan met een standaard lineair mixed model in het `lme4`package.
+
+Mogelijke identificatieproblemen. De 36 ecosysteemdiensten zijn niet zeer goed verdeeld over de cases, wat mogelijks enkele ecosysteemdiensten moeilijk te parameteriseren maakt, omdat het case- en ess-effect niet van elkaar kunnen losgezien worden. Dit is vooral het geval voor ecosysteemdiensten waar een ruim betrouwbaarheidsinterval rond ligt.
+
+Om het model fitbaar te maken met brms worden alle ecosysteemdiensten uitgedrukt als het verschil met een referentieniveau. Standaard is dit het eerste in het alfabet, dus hier is dit de ecosysteemdienst `agri produce`. Deze dienst is het intercept van het model, en de rest is hiertegen uitgedrukt.
+
+```{r tbl-modelcoefs}
+#|tbl.caption: "Modelcoëfficienten van het gewogen gemiddelde model"
+emm_ess <- emmeans(model_simpmeans, specs = ~ ess_short)
+tabel_fixef <- as.data.frame(emm_ess) |> 
+  transmute(par = ess_short, mean = emmean, lcl = lower.HPD, ucl = upper.HPD)
+
+sigma <- summary(model_simpmeans)$spec_pars |> slice(1)
+sdint <- summary(model_simpmeans)$random$case_short |> slice(1)
+tabel_ranef <- bind_rows(
+  sd_intercept = sdint,
+  sigma = sigma,   
+  .id = "par"
+) |> 
+  transmute(
+    par,
+    mean = Estimate, 
+    lcl = `l-95% CI`, 
+    ucl = `u-95% CI`
+  )
+
+knitr::kable(bind_rows(tabel_ranef, tabel_fixef),
+             digits = 3,
+             row.names = FALSE)
+```
+
+Uit figuur @fig-swn_res blijken er geen sterke residuele effecten aanwezig te zijn.
+
+```{r fig-swm_res}
+#| echo: false
+#| fig.caption: "Residuals vs Fitted Values for the Simplified Weighted Means Model"
+invisible(summary(model_simpmeans))
+r <- residuals(model_simpmeans)[,"Estimate"]
+f <- fitted(model_simpmeans)[,"Estimate"]
+
+ggplot(data.frame(res = r, fit = f), aes(x = fit, y = res)) +
+  geom_point() +
+  geom_smooth(method = "lm", color = "red") +
+  labs(title = "Residuals vs Fitted Values", x = "Fitted Values", y = "Residuals")
+```
+
+Figuur @fig-swm_pred  toont de geschatte effecten van de ecosysteemdiensten. Enkel gemotoriseerde recreatie wordt als ongewenst gezien, alsook jacht. De andere ecosysteemdiensten worden als gewenst gezien. Vooral biodiversiteit, levenskwaliteit en waterhuishouding worden heel positief ingeschat.
+
+Recreatie en toerisme worden heel variabel ingeschat, van heel negatief zoals gemotoriseerde recreatie tot heel positief zoals de mogelijkheid tot spelen en zachte recreatie zoals wandelen.
+
+```{r fig-swm_pred}
+#| echo: false
+#| fig.caption: "Estimated Effects of ESS with the  95% Uncertainty intervals for the weighted means model"
+#|fig.height: 7
+#|fig.width: 7
+#| message: false
+
+lookup_cluster <- data_avg %>%
+  select(ess_short, cluster_short) %>%
+  distinct()
+
+plot_data <- left_join(tabel_fixef, lookup_cluster, 
+                       join_by(par == ess_short)) |> 
+  rename(ess_short = par)
+
+ggplot(plot_data, aes(x = ess_short, y = mean, color = cluster_short)) +
+  geom_point(size = 2) +
+  geom_errorbar(aes(ymin = lcl, ymax = ucl), width = 0.2) +
+  coord_flip() + 
+  labs(
+    x = "Ecosystem service",
+    y = "Estimated mean score (with 95% CI)",
+    color = "Cluster"
+  )
+
+```
+
+
+
+```{r fig-swm_predwithconsensus}
+#|fig.cap: "Estimated Effects of ESS Common colored en resized with Agreement"
+#|fig.height: 7
+#|fig.width: 7
+
+pred_with_css <- plot_data |> 
+  left_join(data_consensus_ess |> select(ess_short, cluster_short, consensus),
+            join_by(ess_short, cluster_short))
+  
+ggplot(pred_with_css, aes(x = ess_short, y = mean, color = consensus)) +
+  geom_point(aes(size = consensus), alpha = 1) +
+  geom_errorbar(aes(ymin = lcl, ymax = ucl)) +
+  coord_flip() +
+  labs(title = ,
+       x = "ESS Common",
+       y = "Estimated Effect",
+       color = "Agreement", 
+       size = "Agreement") +
+  #scale_color_manual(values = inbo_palette) + 
+  scale_color_gradient(low = "cyan", high = "blue") +
+  scale_size_continuous(range = c(2, 6))
+```
+
+Hoe ecosysteemdiensten scoren zijn niet voor iedere case hetzelfde. We kunnen de random effecten van de cases bekijken om te zien hoe de geschatte effecten per case verschillen van het gemiddelde effect.
+
+De hoofdreden hier is waarschijnlijk dat niet alle ecosysteemdiensten even zichtbaar aanwezig zijn, of minder belangrijk zijn doordat de case (regio) sowieso al meerdere ecosysteemdiensten heeft in nabijgelegen gebieden.
+
+```{r fig-swm_ran}
+#|fig.cap: "Random Effects for Cases for the weighted mean model"
+random_effects <- ranef(model_simpmeans)
+ranef_case <- random_effects$case[,,"Intercept"] |>
+  as_tibble(rownames = "case") |> 
+  mutate(case = reorder(case, Estimate, mean, decreasing = TRUE))
+
+ggplot(ranef_case, aes(x = case, y = Estimate, ymin = Q2.5, ymax = Q97.5)) +
+  geom_point() +
+  geom_errorbar() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  labs( x = "Case", y = "Random Effect Estimate")
+
+```
+
+
+## Gewogen gemiddelde met individuele respondentinformatie op deel van data
+
+
+
