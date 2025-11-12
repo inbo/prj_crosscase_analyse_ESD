@@ -50,6 +50,7 @@ data_cml <- data_agg |>
 
 # Laad de berekende modellen
 model_simpmeans <- readRDS("models/simplified_weighted_means.RDS")
+model_indivmeans <- readRDS("models/respondent_weighted_means.RDS")
 
 
 ```
@@ -365,4 +366,71 @@ ggplot(ranef_case, aes(x = case, y = Estimate, ymin = Q2.5, ymax = Q97.5)) +
 ## Gewogen gemiddelde met individuele respondentinformatie op deel van data
 
 
+### Modelresultaten
+
+```{r tbl-indivmean-summary}
+
+emm_ess <- emmeans(model_indivmeans, specs = ~ ess_short)
+tabel_fixefi <- as.data.frame(emm_ess) |> 
+  transmute(par = ess_short, mean = emmean, lcl = lower.HPD, ucl = upper.HPD)
+
+sigma <- summary(model_indivmeans)$spec_pars |> slice(1)
+sdint <- summary(model_indivmeans)$random$case_short |> slice(1)
+sdgrp <- summary(model_indivmeans)$random$`case_short:respondent` |> slice(1)
+tabel_ranefi <- bind_rows(
+  sd_intercept = sdint,
+  sd_nested = sdgrp,
+  sigma = sigma,   
+  .id = "par"
+) |> 
+  transmute(
+    par,
+    mean = Estimate, 
+    lcl = `l-95% CI`, 
+    ucl = `u-95% CI`
+  )
+
+knitr::kable(bind_rows(tabel_ranefi, tabel_fixefi),
+             digits = 3,
+             row.names = FALSE)
+
+
+```
+
+### Vergelijken beide methodes
+
+De vergelijking in figuur @fig-compare-estimates is een beetje jonagolds en pink lady appels vergelijken. Het simpele model is geschat over alle cases heen, zonder rekening te houden met of de antwoorden van dezelfde respondent komen. Het individuele model daarentegen gebruikt enkel de cases waarvoor individuele schattingen aanwezig zijn, dus alles uit De Wijers en Gelinden verdwijnen - de helft van de casses.
+
+
+Ondanks de verschillende modellen en gebruikte datasets liggen de geschatte beoordelingen van de ecosysteemdiensten heel dicht bij elkaar op enkele uitzonderingen na, namelijk `plant gathering`, `hunting`, `water quality` en `quality of living`. De ecosysteemdienst `bio materials` komt niet voor in de cases met individuele respondentinformatie.
+
+De betrouwbaarheidsintervallen zijn een stuk breder voor de individuele data, maar de hoofdreden hiervoor is gewoon dat er heel wat minder data gebruikt is voor de schattingen. Sigma verschilt sterk tussen de methoden, maar dat is omdat in het individuele model sigma opgesplitst is in sigma en sd_nested.
+
+```{r fig-compare-estimates}
+#|fig.cap: "Comparison between the estimates of the simple model containing all cases, and the model zith only the 7 cases for which individual respondents could be identified (and using this for estimation)"
+data_comp <- 
+  bind_rows(
+    bind_rows(tabel_ranef, tabel_fixef) |> mutate(model = "simple"),
+    bind_rows(tabel_ranefi, tabel_fixefi) |> mutate(model = "individual")) |> 
+  mutate(par = factor(par, levels = c("sigma", "sd_nested", "sd_intercept", levels(tabel_fixef$par))))
+
+ggplot(
+  data = data_comp,
+  aes(y = par,
+      x = mean,
+      color = model
+  )) +
+  geom_pointrange(
+    aes(
+      xmin = lcl,
+      xmax = ucl
+    ),
+    position = position_dodge(width = 0.5)
+  ) +
+  labs(
+    x = "Estimates (Mean with 95% CI)",
+    y = "Ess",
+    color = "Model") 
+
+```
 

@@ -1,44 +1,70 @@
 
 # Cumulatief logistisch model
-<!--- 
-Dit is volgens mij het meest correcte model om de data te modelleren. Er worden geen aannames gedaan over de verdeling van de data. Er wordt berekend wat de cumulatieve kans is op een score. Dit betekent dat het model de kans berekent dat een ecosysteemdienst een bepaalde score of lager heeft, in plaats van een specifieke score.
+
+
+```{r cundateread}
+#|message: false
+#|cache: true
+library(tidyverse)
+library(brms)
+library(agrmt)
+library(pheatmap)
+library(cluster)
+library(dplyr)
+library(emmeans)
+library(corrplot)
+library(INBOtheme)
+
+conflicted::conflict_prefer_all(c("dplyr"), quiet = TRUE)
+conflicted::conflict_prefer_all(c("purrr"), quiet = TRUE)
+conflicted::conflict_prefer_all(c("tidyr"), quiet = TRUE)
+conflicted::conflict_prefer_all(c("brms"), quiet = TRUE)
+
+# Functie om kwantielen en gemiddelde te berekenen
+quantile_and_mean <- function(x, probs = c(0.025, 0.5, 0.975), na.rm = TRUE, avg = TRUE) {
+  quantiles <- quantile(x, probs = probs, na.rm = na.rm)
+  mean_val <- mean(x, na.rm = na.rm)
+  return(if(!avg) quantiles else c(quantiles, avg = mean_val))
+}
+
+inbo_palette <- INBOtheme::inbo_palette()
+inbostyle_colors <- colorRampPalette(colors = inbo_palette()[1:3])
+
+data_agg <- readRDS("interim/data_agg.rds")
+
+data_cml <- data_agg |> 
+  arrange(case_short, cluster_short, ess_short, f_score) |> 
+  group_by(case_short, cluster_short, ess_short) |> 
+  mutate(resp_cml = cumsum(n_responses),
+         frac_cml = cumsum(n_responses) / sum(n_responses))
+
+model_cml_simple <- readRDS("models/simplified_cumlogit_model.RDS")
+model_cml_indiv <- readRDS("models/respondent_cumlogit_model.RDS")
+```
+
+
+Dit is volgens mij het meest correcte model om de data te modelleren. Er worden geen aannames gedaan over de verdeling van de data. Er wordt berekend wat de cumulatieve kans is op een score.
+Dit betekent dat het model de kans berekent dat een ecosysteemdienst een bepaalde score of lager heeft, in plaats van de kans op een specifieke score te berekenen..
 
 ```{r simplfied_cumlogit_model}
 #| cache: true
-#ignore resp+ondent-level information for 9/14 regions
-# Simplified cumulative logit model
-model_simpcl <- brm(
-  scorecum ~ ess_short + (1 | case),
-  data = data_ana,
-  family = cumulative("logit"),
-  chains = 4,
-  iter = 2000,
-  cores = 4
-)
-save(model_simpcl, file = "models/simplified_cumlogit_model.RData")
-```
 
-```{r simpcl_pred}
-
-invisible(summary(model_simpcl))
-#plot(model_simpcl)
-
-
-# Create newdata for each ess_common
-newdata_simpcl <- data_ana |> transmute(ess_short, cluster_short,  case = "global") |>
+newdata_simpcl <- data_agg |> transmute(ess_short, cluster_short,  case_short = "global") |>
   distinct() |>
   mutate(rownr = row_number())
 
-fitted_summary <- fitted(model_simpcl, newdata = newdata_simpcl, summary = TRUE, allow_new_levels = TRUE)
-fitted_summary_s <-  fitted(model_simpcl, newdata = newdata_simpcl, summary = FALSE, allow_new_levels = TRUE)
+#haal fitted values op
+fitted_summary <- fitted(model_cml_simple, newdata = newdata_simpcl, summary = TRUE, allow_new_levels = TRUE)
+fitted_summary_s <-  fitted(model_cml_simple, newdata = newdata_simpcl, summary = FALSE, allow_new_levels = TRUE)
+
+#sommeer de individuele (dimensie 3) scores tot een cumulatieve kans
 summary_01 <- fitted_summary_s[,,1]
 summary_12 <- fitted_summary_s[,,1] + fitted_summary_s[,,2]
 summary_13 <- fitted_summary_s[,,1] + fitted_summary_s[,,2] + fitted_summary_s[,,3]
 summary_14 <- fitted_summary_s[,,1] + fitted_summary_s[,,2] + fitted_summary_s[,,3] + fitted_summary_s[,,4]
 summary_15 <- fitted_summary_s[,,1] + fitted_summary_s[,,2] + fitted_summary_s[,,3] + fitted_summary_s[,,4] + fitted_summary_s[,,5]
 
-
-
+#maak de predicties
 pred01 <- t(apply(summary_01, 2, quantile_and_mean, probs = c(0.025,0.500,0.975), na.rm = TRUE)) |>
   as.data.frame() |>
   mutate(value = "P(-1)",
@@ -78,10 +104,15 @@ estimates_clm <- fitted_summary[,1,] |>
          cluster_short = newdata_simpcl |> pull(cluster_short)) |>
   pivot_longer(cols = -c(ess_short, cluster_short), names_to = "value", values_to = "estimate") |>
   mutate(value = factor(value,
-                        levels = c("P(Y = 5)", "P(Y = 4)", "P(Y = 3)", "P(Y = 2)", "P(Y = 1)"),
+                        levels = c("P(Y = 3)", "P(Y = 2)", "P(Y = 1)", "P(Y = 0)", "P(Y = -1)"),
                         labels = c("P(<=3)","P(<=2)","P(<=1)","P(<=0)","P(-1)")))
 
+```
 
+```{r fig-simpcl_pred_plot}
+#|fig.cap: "Results of the cumulative logistics model using all cases, but ignoring the respondent level effect."
+#|fig.width: 7
+#|fig.height: 10
 
 ggplot(estimates_clm, aes(x = ess_short, y = estimate, fill = value)) +
   geom_bar(stat = "identity", position = "stack") +
@@ -94,17 +125,20 @@ ggplot(estimates_clm, aes(x = ess_short, y = estimate, fill = value)) +
   facet_wrap(~cluster_short, scales = "free_x", nrow = 2) +
   theme(axis.text.x = element_text(angle = 90, hjust = 0.3, vjust = 0.5)) +
   scale_fill_manual(values = rev(RColorBrewer::brewer.pal(5, "RdYlBu"))) +
-  labs(title = "Estimated score of ESS  with 95% Uncertainty Intervals on cumulative value",
-       x = "ESS",
+  labs(x = "ESS",
        y = "Estimated Probability",
        fill = "Score")
-ggsave("models/simplified_cumlogit_model_estimates.png", width = 7, height = 10)
+#ggsave("simplified_cumlogit_model_estimates.png", width = 7, height = 10)
 ```
 
-```{r simpcl_ran}
 
-VarCorr(model_simpcl)
-random_effects <- ranef(model_simpcl)
+
+```{r fig-simpcl_ran}
+#|fig.cap: "Random effect estimates of the cumulative logistic model, in logit scale."
+
+sdran <- VarCorr(model_cml_simple)
+sdest <- round(sdran$case_short$sd[1,"Estimate"],2)
+random_effects <- ranef(model_cml_simple)
 # Extract random effects for each case
 ranef_case <- random_effects$case[,,"Intercept"] |>
   as_tibble(rownames = "case") |>
@@ -115,245 +149,117 @@ ggplot(ranef_case, aes(x = case, y = Estimate, ymin = Q2.5, ymax = Q97.5)) +
   geom_errorbar() +
   geom_hline(yintercept = 0, linetype = "dashed") +
   theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
-  labs(title = "Random Effects for Cases", x = "Case", y = "Random Effect Estimate") +
+  labs(x = "Case", y = paste0("Random Effect Estimate")) +
   theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
 ```
 
-```{r simpcl_consensus}
-
-pred_probs <- fitted(model_simpcl, newdata = newdata_simpcl, summary = FALSE, allow_new_levels = TRUE)
-
-consensus_scores <- apply(pred_probs, c(1,2), function(x) 1 - agrmt::Leik(x)) |>
-  as_tibble()
-colnames(consensus_scores) <- unique(data_ana$ess_short)
-consensus_scores <- pivot_longer(consensus_scores, cols = everything(), names_to = "ess_short", values_to = "consensus_score")
-consensus_scores <- consensus_scores |>
-  left_join(ess_def |>
-              select(ess_short, cluster_short),
-            by = "ess_short") |>
-  mutate(ess_short = factor(ess_short, levels = ess_short_ordered))
-
-
-q_m <- function(x) as_tibble(t(quantile_and_mean(x)))
-
-consensus_scores_plt <- consensus_scores |>
-  group_by(ess_short, cluster_short) |>
-  reframe(q_m(consensus_score))
-
-ggplot(consensus_scores_plt, aes(x = ess_short, y = avg, ymin = `2.5%`, ymax = `97.5%`, color = cluster_short)) +
-  geom_point() +
-  geom_errorbar() +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
-  ylim(0, 1) +
-  labs(title = "Consensus Scores by ESS Common", x = "ESS Common", y = "Consensus Score")
-
-
-consensus_mean_scores <- consensus_scores |>
-  group_by(ess_short, cluster_short) |>
-  summarise(consensus_mean = mean(consensus_score, na.rm = TRUE), .groups = "drop") |>
-  mutate(ess_short = factor(ess_short, levels = ess_short_ordered))
-
-avgscores <- fitted_summary[, "Estimate", ] |>
-  as.data.frame() |>
-  mutate(ess_short = newdata_simpcl |> pull(ess_short),
-         cluster_short = newdata_simpcl |> pull(cluster_short)) |>
-  rowwise() |>
-  mutate(avg = sum(c(-1:3) * c_across(starts_with("P(Y ="))))
-
-plotdata <- consensus_mean_scores |>
-  left_join(avgscores, by = c("ess_short", "cluster_short"))
-
-
-ggplot(plotdata, aes(x = ess_short, y = avg, color = cluster_short, size = consensus_mean)) +
-  geom_point() +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
-  labs(title = "Average Scores and Consensus Scores by ESS Common",
-       x = "ESS Common",
-       y = "Average Score",
-       color = "Cluster",
-       size = "Consensus") +
-  scale_size_continuous(range = c(4, 8))
-
-
-
-```
-
-```{r simpcl_consensus_case}
-
-newdata_case <- data_ana |>
-  transmute(ess_short, cluster_short, case) |>
-  distinct() |>
-  mutate(rownr = row_number())
-
-pred_probs_case <- fitted(model_simpcl, newdata = newdata_case, summary = FALSE, allow_new_levels = TRUE)
-# Calculate consensus scores for each case
-
-pred_probs_case_s <- fitted(model_simpcl, newdata = newdata_case, summary = TRUE, allow_new_levels = TRUE)
-
-avgscores_case <- pred_probs_case_s[, "Estimate", ] |>
-  as.data.frame() |>
-  mutate(ess_short = newdata_case |> pull(ess_short),
-         cluster_short = newdata_case |> pull(cluster_short),
-         case = newdata_case |> pull(case))|>
-  rowwise() |>
-  mutate(avg = sum(c(-1:3) * c_across(starts_with("P(Y ="))))
-
-
-
-
-leik_case <- NULL
-for (j in 1:ncol(pred_probs_case)) {
-  #print(j)
-  scores <- pred_probs_case[, j, ]
-  score <- apply(scores, 1, function(x) 1 - Leik(x))
-  avg_score <- mean(score, na.rm = TRUE)
-  q025_score <- quantile(score, 0.025, na.rm = TRUE)
-  q075_score <- quantile(score, 0.975, na.rm = TRUE)
-  rv <- data.frame(ess_short = newdata_case$ess_short[j],
-                   cluster_short = newdata_case$cluster_short[j],
-                   case = newdata_case$case[j],
-                   avg_leik = avg_score,
-                   q025_leik = q025_score,
-                   q975_leik = q075_score)
-  leik_case <- bind_rows(leik_case, rv)
-}
-
-
-ggplot(leik_case, aes(x = ess_short, y = avg_leik, ymin = q025_leik, ymax = q975_leik, color = cluster_short)) +
-  geom_point() +
-  geom_errorbar() +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
-  labs(title = "Consensus Scores by ESS Common and Case", x = "ESS Common", y = "Consensus Score") +
-  scale_color_manual(values = inbo_palette) +
-  facet_wrap(~case)
-
-
-#nu nog de globale gemiddeldes toevoegen (errorbars kunnen hier niet, maar zouden ook nog kunnen)
-
-plotdata_case <- avgscores_case |>
-  left_join(leik_case, by = c("ess_short", "cluster_short", "case"))
-
-ggplot(plotdata_case, aes(x = ess_short, y = avg, color = cluster_short, size = avg_leik)) +
-  geom_point() +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
-  labs(title = "Average Scores and Consensus Scores by ESS Common and Case",
-       x = "ESS Common",
-       y = "Average Score",
-       color = "Cluster",
-       size = "Consensus") +
-  scale_size_continuous(range = c(2, 4)) +
-  facet_wrap(~case)
-
-```
-
---->
-
-<!---
-
-### Hurdle model
-
-```{r simplified_hurdle_model}
-#| cache: true
-model_simphurdle <- brm(
-    bf(isnegative ~ ess_short + (1|case),
-       nresp  ~ score * ess_short + (1|case)),
-    data = data_cum, # same expanded data as above
-    family = hurdle_negbinomial(),
-    chains = 4,
-    iter = 2000,
-    cores = 4
-    )
-save(model_simphurdle, file = "models/simplified_hurdle_model.RData")
-
-```
-
---->
 
 ## Cumulatief logistisch model op de individuele responses
 
-<!--
-
-We gaan nu de volledige modellen opstellen, waarbij we rekening houden met de respondent-level informatie en de verschillende regio's. We zullen zowel een cumulatief logistisch model als een hurdle model opstellen.
-
-### Cumulatief logistisch model
-
-```{r cumlogit_model}
-
-model <- brm(
-  score_cumlogit ~ ess_short + (ess_short | case) + (1 | respondent),
-  data = data_ana,
-  family = cumulative("logit"),
-  chains = 4,
-  iter = 2000,
-  cores = 4
-)
-
-save(model, file = "models/cumlogit_first_model.RData")
-```
-
-### Hurdle model
-
-```{r hurdle_model}
-hurdle_model <- brm(
-  bf(
-    # Hurdle part: probability of non-negative rating
-    ispositive ~ ess_short + (ess_short | case) + (1 | respondent),
-    # Positive part: level of positivity given non-negative
-    scorehu ~ ess_short + (ess_short | region) + (1 | respondent)
-  ),
-  data = combined_data,
-  family = hurdle_negbinomial(),
-  chains = 4,
-  iter = 2000,
-  cores = 4
-)
-save(hurdle_model, file = "models/hurdle_first_model.Rdata")
-```
-
-## Modelformulering vooor hurdle model met respondent-level informatie
-
 ```{r}
+#| cache: true
 
-#Eerst nog eens thesis Ilja nalezen
+newdata_cml <- model_cml_indiv$data |> 
+  distinct(ess_short) |> 
+  mutate(case_short = "global",
+         respondent = 0) |>
+  mutate(rownr = row_number()) 
 
-data_ana <- data_processed %>%
-  mutate(score = score + 1) # Omgaan met nullen in de score
-#Let op, data nog aanpassen aan het feit dat er net altijd een respondent gekend is, en dat er moet gewogen worden voor de cases met het aantal respondenten
+#haal fitted values op
+fitted_summary_ind <- fitted(model_cml_indiv, newdata = newdata_cml, summary = TRUE, allow_new_levels = TRUE)
+fitted_summary_s_ind <-  fitted(model_cml_indiv, newdata = newdata_cml, summary = FALSE, allow_new_levels = TRUE)
+
+#sommeer de individuele (dimensie 3) scores tot een cumulatieve kans
+summary_01_ind <- fitted_summary_s_ind[,,1]
+summary_12_ind <- fitted_summary_s_ind[,,1] + fitted_summary_s_ind[,,2]
+summary_13_ind <- fitted_summary_s_ind[,,1] + fitted_summary_s_ind[,,2] + fitted_summary_s_ind[,,3]
+summary_14_ind <- fitted_summary_s_ind[,,1] + fitted_summary_s_ind[,,2] + fitted_summary_s_ind[,,3] + fitted_summary_s_ind[,,4]
+summary_15_ind <- fitted_summary_s_ind[,,1] + fitted_summary_s_ind[,,2] + fitted_summary_s_ind[,,3] + fitted_summary_s_ind[,,4] + fitted_summary_s_ind[,,5]
+
+#maak de predicties
+pred01_ind <- t(apply(summary_01_ind, 2, quantile_and_mean, probs = c(0.025,0.500,0.975), na.rm = TRUE)) |>
+  as.data.frame() |>
+  mutate(value = "P(-1)",
+         ess_short = newdata_cml |> pull(ess_short))
+
+pred12_ind <- t(apply(summary_12_ind, 2, quantile_and_mean, probs = c(0.025,0.500,0.975), na.rm = TRUE)) |>
+  as.data.frame() |>
+  mutate(value = "P(<=0)",
+         ess_short = newdata_cml |> pull(ess_short))
+
+pred13_ind <- t(apply(summary_13_ind, 2, quantile_and_mean, probs = c(0.025,0.500,0.975), na.rm = TRUE)) |>
+  as.data.frame() |>
+  mutate(value = "P(<=1)",
+         ess_short = newdata_cml |> pull(ess_short))
+
+pred14_ind <- t(apply(summary_14_ind, 2, quantile_and_mean, probs = c(0.025,0.500,0.975), na.rm = TRUE)) |>
+  as.data.frame() |>
+  mutate(value = "P(<=2)",
+         ess_short = newdata_cml |> pull(ess_short))
+
+pred15_ind <- t(apply(summary_15_ind, 2, quantile_and_mean, probs = c(0.025,0.500,0.975), na.rm = TRUE)) |>
+  as.data.frame() |>
+  mutate(value = "P(<=3)",
+         ess_short = newdata_cml |> pull(ess_short))
+
+predicties_clm_ind <- bind_rows(pred01_ind, pred12_ind, pred13_ind, pred14_ind, pred15_ind) |>
+  mutate(value = factor(value, levels = rev(c("P(-1)", "P(<=0)", "P(<=1)", "P(<=2)", "P(<=3)")))) |> 
+  left_join(data_respondent |> select(ess_short, cluster_short) |> distinct(),
+            join_by(ess_short))
 
 
-#Op subset van de data voor enkel de cases waarvoor respondenten gekend zijn
+estimates_clm_ind <- fitted_summary_ind[,1,] |>
+  as.data.frame() |>
+  mutate(ess_short = newdata_cml |> pull(ess_short)) |>
+  pivot_longer(cols = -c(ess_short), names_to = "value", values_to = "estimate") |>
+  mutate(value = factor(value,
+                        levels = c("P(Y = 3)", "P(Y = 2)", "P(Y = 1)", "P(Y = 0)", "P(Y = -1)"),
+                        labels = c("P(<=3)","P(<=2)","P(<=1)","P(<=0)","P(-1)"))) |> 
+  left_join(data_respondent |> select(ess_short, cluster_short) |> distinct(),
+            join_by(ess_short))
 
-library(brms)
-# Definieer het model
-model <- brm(
-  bf(
-    # Binaire component
-    score ~ 1,
-    # Negatief binomiaal component
-    score ~ ess_short + (1|case/respondent),
-    family = hurdle_negbinomial()
-  ),
-  data = data,
-  prior = c(
-    set_prior("normal(0, 5)", class = "b"),
-    set_prior("normal(0, 5)", class = "Intercept")
-  ),
-  chains = 4,
-  iter = 2000,
-  warmup = 1000,
-  control = list(adapt_delta = 0.95)
-)
-# Samenvatting van het model
-summary(model)
-# Visualiseer de resultaten
-plot(model)
-# Voorspel de waarden
-predictions <- posterior_predict(model)
 
 ```
+
+
+```{r fig-indiv_pred_plot}
+#|fig.cap: "Results of the cumulative logistics model using the cases with respondent level information, which is modelled."
+#|fig.width: 7
+#|fig.height: 10
+
+ggplot(estimates_clm_ind, aes(x = ess_short, y = estimate, fill = value)) +
+  geom_bar(stat = "identity", position = "stack") +
+  geom_errorbar(data = predicties_clm_ind,
+                aes(ymin = `2.5%`, ymax = `97.5%`, x = ess_short, y = `50%`),
+                position = position_dodge(0.8)) +
+  geom_point(data = predicties_clm_ind,
+             aes(x = ess_short, y = avg),
+             position = position_dodge(0.8)) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 0.3, vjust = 0.5)) +
+  scale_fill_manual(values = rev(RColorBrewer::brewer.pal(5, "RdYlBu"))) +
+  labs(x = "ESS",
+       y = "Estimated Probability",
+       fill = "Score") +
+  facet_wrap(~cluster_short, scales = "free_x", nrow = 2)
+
+
+#ggsave("simplified_cumlogit_model_estimates.png", width = 7, height = 10)
+```
+
+
+
+
+## Hurdle model
+
+We kiezen ervoor de data niet via een hurdle model te analyseren. Een hurdle model in dit geval zou een model zijn waarbij de kans op een negatieve beoodeling wordt geschat, en dan het gemiddelde wordt gemodelleerd van de overgebleven scores.
+
+In de data zijn het aantal negatieve beoordelingen echter zo laag, en heel specifiek maar voor 2 ecosysteemdiensten, waardoor dit model niet veel meerwaarde biedt dan een gewone beoordeling via het gemiddelde van de scores. Het meest correcte model met deze data is volgens mij het cumulatief logistische model, omdat dit de aard van de data het best benaderd, en de kans op een negatieve beoordeling zit hier ook impliciet in als de kans dat de score -1 is.
+
+
+
 
 ````{=html}
-<!--
+
 # Visualiseer de voorspellingen
 hist(predictions, main = "Posterior Predictions", xlab = "Predicted Values", breaks = 30)
 # Opslaan van het model
