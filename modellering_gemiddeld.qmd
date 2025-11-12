@@ -3,8 +3,8 @@
 ## Inleiding
 
 ```{r dataread}
-#|message: false
-#|cache: true
+#| message: false
+#| results: "hide"
 library(tidyverse)
 library(brms)
 library(agrmt)
@@ -98,7 +98,7 @@ ess_similarity <- 1 - ess_dist / max(ess_dist)
 ```
 
 ```{r fig-similaritycase}
-#|fig.cap: "Similarity between cases among ESS answers"
+#|fig-cap: "Similarity between cases among ESS answers"
 pheatmap(case_similarity,
          cluster_cols = FALSE, cluster_rows = FALSE,
          color = colorRampPalette(c("red", "white", "blue"))(100))
@@ -106,7 +106,7 @@ pheatmap(case_similarity,
 ```
 
 ```{r fig-similarityess}
-#|fig.cap: "Similarity between ESS among case answers"
+#|fig-cap: "Similarity between ESS among case answers"
 pheatmap(ess_similarity,
          cluster_cols = FALSE, cluster_rows = FALSE,
          color = colorRampPalette(c("red", "white", "blue"))(100))
@@ -142,7 +142,7 @@ ggraph(network, layout = "fr") +
 
 
 ```{r fig-nmds}
-#|fig.cap: "Similarity in answers on ESS - MDS Plot"
+#|fig-cap: "Similarity in answers on ESS - MDS Plot"
 mds <- cmdscale(1 - ess_similarity, k = 2)
 mds_df <- data.frame(
   region = rownames(ess_similarity),
@@ -166,7 +166,7 @@ De keuze is gevallen op de Leik score omdat deze score goed werkt voor ordinale 
 Dus als iedereen dezelfde score geeft, is de Leik score 1. Als de helft het minimum als score geeft en de andere helft het maximum, is de Leik score 0. De Leik score zal het beoordelen van naburige scores minder sterk afstraffen dan als de klasses verder uiteen liggen. Een Leik score van 0.5 krijg je bijvoorbeeld als de helft de tweede en de andere helft de vierde score geeft in een scoresysteem met 5 klassen.
 
 ```{r tbl-Leik_agreement_example}
-#| tbl.cap: "Leik's Agreement Scores for ESS Common"
+#| tbl-cap: "Leik's Agreement Scores for ESS Common"
 mat <- rbind(c(0,0,20,0,0),
              c(0,5,10,5,0),
              c(0,10,10,0,0),
@@ -248,7 +248,7 @@ Mogelijke identificatieproblemen. De 36 ecosysteemdiensten zijn niet zeer goed v
 Om het model fitbaar te maken met brms worden alle ecosysteemdiensten uitgedrukt als het verschil met een referentieniveau. Standaard is dit het eerste in het alfabet, dus hier is dit de ecosysteemdienst `agri produce`. Deze dienst is het intercept van het model, en de rest is hiertegen uitgedrukt.
 
 ```{r tbl-modelcoefs}
-#|tbl.caption: "Modelcoëfficienten van het gewogen gemiddelde model"
+#|tbl-caption: "Modelcoëfficienten van het gewogen gemiddelde model"
 emm_ess <- emmeans(model_simpmeans, specs = ~ ess_short)
 tabel_fixef <- as.data.frame(emm_ess) |> 
   transmute(par = ess_short, mean = emmean, lcl = lower.HPD, ucl = upper.HPD)
@@ -272,11 +272,12 @@ knitr::kable(bind_rows(tabel_ranef, tabel_fixef),
              row.names = FALSE)
 ```
 
-Uit figuur @fig-swn_res blijken er geen sterke residuele effecten aanwezig te zijn.
+Uit figuur @fig-swm_res blijken er geen sterke residuele effecten aanwezig te zijn.
 
 ```{r fig-swm_res}
 #| echo: false
-#| fig.caption: "Residuals vs Fitted Values for the Simplified Weighted Means Model"
+#| message: false
+#| fig-caption: "Residuals vs Fitted Values for the Simplified Weighted Means Model"
 invisible(summary(model_simpmeans))
 r <- residuals(model_simpmeans)[,"Estimate"]
 f <- fitted(model_simpmeans)[,"Estimate"]
@@ -293,9 +294,9 @@ Recreatie en toerisme worden heel variabel ingeschat, van heel negatief zoals ge
 
 ```{r fig-swm_pred}
 #| echo: false
-#| fig.caption: "Estimated Effects of ESS with the  95% Uncertainty intervals for the weighted means model"
-#|fig.height: 7
-#|fig.width: 7
+#| fig-caption: "Estimated Effects of ESS with the  95% Uncertainty intervals for the weighted means model"
+#|fig-height: 7
+#|fig-width: 7
 #| message: false
 
 lookup_cluster <- data_avg %>%
@@ -321,9 +322,9 @@ ggplot(plot_data, aes(x = ess_short, y = mean, color = cluster_short)) +
 
 
 ```{r fig-swm_predwithconsensus}
-#|fig.cap: "Estimated Effects of ESS Common colored en resized with Agreement"
-#|fig.height: 7
-#|fig.width: 7
+#|fig-cap: "Estimated Effects of ESS Common colored en resized with Agreement"
+#|fig-height: 7
+#|fig-width: 7
 
 pred_with_css <- plot_data |> 
   left_join(data_consensus_ess |> select(ess_short, cluster_short, consensus),
@@ -348,7 +349,7 @@ Hoe ecosysteemdiensten scoren zijn niet voor iedere case hetzelfde. We kunnen de
 De hoofdreden hier is waarschijnlijk dat niet alle ecosysteemdiensten even zichtbaar aanwezig zijn, of minder belangrijk zijn doordat de case (regio) sowieso al meerdere ecosysteemdiensten heeft in nabijgelegen gebieden.
 
 ```{r fig-swm_ran}
-#|fig.cap: "Random Effects for Cases for the weighted mean model"
+#|fig-cap: "Random Effects for Cases for the weighted mean model"
 random_effects <- ranef(model_simpmeans)
 ranef_case <- random_effects$case[,,"Intercept"] |>
   as_tibble(rownames = "case") |> 
@@ -407,7 +408,7 @@ Ondanks de verschillende modellen en gebruikte datasets liggen de geschatte beoo
 De betrouwbaarheidsintervallen zijn een stuk breder voor de individuele data, maar de hoofdreden hiervoor is gewoon dat er heel wat minder data gebruikt is voor de schattingen. Sigma verschilt sterk tussen de methoden, maar dat is omdat in het individuele model sigma opgesplitst is in sigma en sd_nested.
 
 ```{r fig-compare-estimates}
-#|fig.cap: "Comparison between the estimates of the simple model containing all cases, and the model zith only the 7 cases for which individual respondents could be identified (and using this for estimation)"
+#|fig-cap: "Comparison between the estimates of the simple model containing all cases, and the model zith only the 7 cases for which individual respondents could be identified (and using this for estimation)"
 data_comp <- 
   bind_rows(
     bind_rows(tabel_ranef, tabel_fixef) |> mutate(model = "simple"),

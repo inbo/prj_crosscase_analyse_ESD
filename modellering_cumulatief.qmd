@@ -1,10 +1,17 @@
 
 # Cumulatief logistisch model
 
+## Inleiding
+
+
+Het cumulatief logistische model is volgens mij het meest correcte model om de data te modelleren. Er worden geen aannames gedaan over de verdeling van de data. Er wordt berekend wat de cumulatieve kans is op een score.
+Dit betekent dat het model de kans berekent dat een ecosysteemdienst een bepaalde score of lager heeft, in plaats van de kans op een specifieke score te berekenen.
+
+
 
 ```{r cundateread}
-#|message: false
-#|cache: true
+#| message: false
+#| results: "hide"
 library(tidyverse)
 library(brms)
 library(agrmt)
@@ -31,6 +38,7 @@ inbo_palette <- INBOtheme::inbo_palette()
 inbostyle_colors <- colorRampPalette(colors = inbo_palette()[1:3])
 
 data_agg <- readRDS("interim/data_agg.rds")
+data_respondent <- readRDS("interim/data_respondent.rds")
 
 data_cml <- data_agg |> 
   arrange(case_short, cluster_short, ess_short, f_score) |> 
@@ -42,9 +50,10 @@ model_cml_simple <- readRDS("models/simplified_cumlogit_model.RDS")
 model_cml_indiv <- readRDS("models/respondent_cumlogit_model.RDS")
 ```
 
+## Resultaten cumulatief model
 
-Dit is volgens mij het meest correcte model om de data te modelleren. Er worden geen aannames gedaan over de verdeling van de data. Er wordt berekend wat de cumulatieve kans is op een score.
-Dit betekent dat het model de kans berekent dat een ecosysteemdienst een bepaalde score of lager heeft, in plaats van de kans op een specifieke score te berekenen..
+
+### volledig plot
 
 ```{r simplfied_cumlogit_model}
 #| cache: true
@@ -110,9 +119,9 @@ estimates_clm <- fitted_summary[,1,] |>
 ```
 
 ```{r fig-simpcl_pred_plot}
-#|fig.cap: "Results of the cumulative logistics model using all cases, but ignoring the respondent level effect."
-#|fig.width: 7
-#|fig.height: 10
+#|fig-cap: "Results of the cumulative logistics model using all cases, but ignoring the respondent level effect."
+#|fig-width: 7
+#|fig-height: 10
 
 ggplot(estimates_clm, aes(x = ess_short, y = estimate, fill = value)) +
   geom_bar(stat = "identity", position = "stack") +
@@ -134,7 +143,7 @@ ggplot(estimates_clm, aes(x = ess_short, y = estimate, fill = value)) +
 
 
 ```{r fig-simpcl_ran}
-#|fig.cap: "Random effect estimates of the cumulative logistic model, in logit scale."
+#|fig-cap: "Random effect estimates of the cumulative logistic model, in logit scale."
 
 sdran <- VarCorr(model_cml_simple)
 sdest <- round(sdran$case_short$sd[1,"Estimate"],2)
@@ -154,9 +163,64 @@ ggplot(ranef_case, aes(x = case, y = Estimate, ymin = Q2.5, ymax = Q97.5)) +
 ```
 
 
+### Vereenvoudigde plots
+
+```{r fig-better_than_zero}
+#| fig-cap: "The estimated probability that the score is greater than zero"
+
+ggplot(pred12 |> mutate(est = 1 - `50%`, q025 = 1 - `97.5%`, q975 = 1 - `2.5%`),
+       aes(x = ess_short, y = est, color = cluster_short)) + 
+  geom_point() + 
+  geom_errorbar(aes(ymin = q025, ymax = q975)) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))  + 
+  labs(x = "ESS", y = "Probability of score > 0", color = "ESS cluster")
+
+```
+
+
+
+```{r fig-better_than_zero_facets}
+#| fig-cap: "The estimated probability that the score is greater than zero (with facets)"
+
+ggplot(pred12 |> mutate(est = 1 - `50%`, q025 = 1 - `97.5%`, q975 = 1 - `2.5%`),
+       aes(x = ess_short, y = est)) + 
+  geom_point() + 
+  geom_errorbar(aes(ymin = q025, ymax = q975)) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))  + 
+  labs(x = "ESS", y = "Probability of score > 0") +
+    facet_wrap(~cluster_short, scales = "free_x", nrow = 2)
+
+```
+
+```{r fig-two_or_better}
+#| fig-cap: "The estimated probability that the score is greater or equal to 2, so very much desired"
+
+ggplot(pred14 |> mutate(est = 1 - `50%`, q025 = 1 - `97.5%`, q975 = 1 - `2.5%`),
+       aes(x = ess_short, y = est, color = cluster_short)) + 
+  geom_point() + 
+  geom_errorbar(aes(ymin = q025, ymax = q975)) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))  + 
+  labs(x = "ESS", y = "Probability of score >= 2", color = "ESS cluster")
+
+```
+
+```{r fig-two_or_better_facets}
+#| fig-cap: "The estimated probability that the score is greater than zero (with facets)"
+
+ggplot(pred14 |> mutate(est = 1 - `50%`, q025 = 1 - `97.5%`, q975 = 1 - `2.5%`),
+       aes(x = ess_short, y = est)) + 
+  geom_point() + 
+  geom_errorbar(aes(ymin = q025, ymax = q975)) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))  + 
+  labs(x = "ESS", y = "Probability of score >= 2") +
+    facet_wrap(~cluster_short, scales = "free_x", nrow = 2)
+
+```
+
+
 ## Cumulatief logistisch model op de individuele responses
 
-```{r}
+```{r data_cml_indiv}
 #| cache: true
 
 newdata_cml <- model_cml_indiv$data |> 
@@ -223,9 +287,9 @@ estimates_clm_ind <- fitted_summary_ind[,1,] |>
 
 
 ```{r fig-indiv_pred_plot}
-#|fig.cap: "Results of the cumulative logistics model using the cases with respondent level information, which is modelled."
-#|fig.width: 7
-#|fig.height: 10
+#|fig-cap: "Results of the cumulative logistics model using the cases with respondent level information, which is modelled."
+#|fig-width: 7
+#|fig-height: 10
 
 ggplot(estimates_clm_ind, aes(x = ess_short, y = estimate, fill = value)) +
   geom_bar(stat = "identity", position = "stack") +
@@ -255,88 +319,4 @@ We kiezen ervoor de data niet via een hurdle model te analyseren. Een hurdle mod
 
 In de data zijn het aantal negatieve beoordelingen echter zo laag, en heel specifiek maar voor 2 ecosysteemdiensten, waardoor dit model niet veel meerwaarde biedt dan een gewone beoordeling via het gemiddelde van de scores. Het meest correcte model met deze data is volgens mij het cumulatief logistische model, omdat dit de aard van de data het best benaderd, en de kans op een negatieve beoordeling zit hier ook impliciet in als de kans dat de score -1 is.
 
-
-
-
-````{=html}
-
-# Visualiseer de voorspellingen
-hist(predictions, main = "Posterior Predictions", xlab = "Predicted Values", breaks = 30)
-# Opslaan van het model
-saveRDS(model, file = "hurdle_model.rds")
-# Laad het model
-loaded_model <- readRDS("hurdle_model.rds")
-# Voorspel nieuwe waarden
-new_data <- data.frame(region = unique(data$region))
-predictions_new <- posterior_predict(loaded_model, newdata = new_data)
-# Visualiseer de nieuwe voorspellingen
-hist(predictions_new, main = "Posterior Predictions for New Data", xlab = "Predicted Values", breaks = 30)
-# Opslaan van de voorspellingen
-write.csv(predictions_new, file = "predictions_new.csv", row.names = FALSE)
-# Evaluatie van het model
-library(loo)
-loo_result <- loo(model)
-# Samenvatting van de LOO-criteria
-print(loo_result)
-# Visualiseer de LOO-criteria
-plot(loo_result)
-# Opslaan van de LOO-criteria
-saveRDS(loo_result, file = "loo_result.rds")
-# Laad de LOO-criteria
-loaded_loo_result <- readRDS("loo_result.rds")
-# Visualiseer de geladen LOO-criteria
-plot(loaded_loo_result)
-# Opslaan van de resultaten
-saveRDS(list(model = model, predictions = predictions, loo_result = loo_result), file = "model_results.rds")
-# Laad de resultaten
-loaded_results <- readRDS("model_results.rds")
-# Visualiseer de geladen resultaten
-plot(loaded_results$model)
-# Voorspel de waarden met de geladen resultaten
-predictions_loaded <- posterior_predict(loaded_results$model)
-# Visualiseer de voorspellingen van de geladen resultaten
-hist(predictions_loaded, main = "Posterior Predictions from Loaded Model", xlab = "Predicted Values", breaks = 30)
-# Opslaan van de voorspellingen van de geladen resultaten
-write.csv(predictions_loaded, file = "predictions_loaded.csv", row.names = FALSE)
-# Evaluatie van de voorspellingen
-library(ggplot2)
-ggplot(data = data.frame(predictions = predictions_loaded), aes(x = predictions)) +
-  geom_histogram(bins = 30, fill = "blue", alpha = 0.7) +
-  labs(title = "Histogram of Predictions from Loaded Model", x = "Predicted Values", y = "Frequency") +
-  theme_minimal()
-# Opslaan van de visualisatie
-ggsave("predictions_histogram.png", width = 8, height = 6)
-# Laad de visualisatie
-predictions_histogram <- png::readPNG("predictions_histogram.png")
-# Visualiseer de geladen histogram
-grid::grid.raster(predictions_histogram)
-# Opslaan van de geladen histogram
-png::writePNG(predictions_histogram, "predictions_histogram_loaded.png")
-# Laad de geladen histogram
-loaded_predictions_histogram <- png::readPNG("predictions_histogram_loaded.png")
-# Visualiseer de geladen histogram
-grid::grid.raster(loaded_predictions_histogram)
-# Opslaan van de geladen histogram
-png::writePNG(loaded_predictions_histogram, "predictions_histogram_final.png")
-# Laad de finale histogram
-final_predictions_histogram <- png::readPNG("predictions_histogram_final.png")
-# Visualiseer de finale histogram
-grid::grid.raster(final_predictions_histogram)
-# Opslaan van de finale histogram
-png::writePNG(final_predictions_histogram, "predictions_histogram_final.png")
-# Laad de finale histogram
-final_predictions_histogram <- png::readPNG("predictions_histogram_final.png")
-# Visualiseer de finale histogram
-grid::grid.raster(final_predictions_histogram)
-# Opslaan van de finale histogram
-png::writePNG(final_predictions_histogram, "predictions_histogram_final.png")
-# Laad de finale histogram
-final_predictions_histogram <- png::readPNG("predictions_histogram_final.png")
-# Visualiseer de finale histogram
-grid::grid.raster(final_predictions_histogram)
-# Opslaan van de finale histogram
-```
--->
-````
---->
-
+## Conclusie

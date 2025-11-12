@@ -20,10 +20,10 @@ to do:
 
 ```{r setup}
 #| include: false
-#| #| message: false
-#| warning: false
 #| message: false
-#| results: hide
+#| warning: false
+#| results: "hide"
+
 library(tidyverse)
 library(here)
 library(readxl)
@@ -206,7 +206,7 @@ DT::datatable(tb_ess,
 ### Verdeling ecosysteemdiensten
 
 ```{r fig-caseOverview}
-#| fig.cap: "Occurence of common ecosystem services across the case studies. Some cases have more than one service under the same common service name. Total cases are added to each bar, total services between brackets"
+#| fig-cap: "Occurence of common ecosystem services across the case studies. Some cases have more than one service under the same common service name. Total cases are added to each bar, total services between brackets"
 tb <- data_ana |>
   group_by(case_short, ess_short, ess_unique) |>
   summarise(n = n_distinct(ess_unique), .groups = "drop_last") |> 
@@ -239,7 +239,7 @@ ggplot(tb |> mutate(ess_short = factor(ess_short, levels = sorted_levels)),
 Hieronder (figuur @fig-caseoverview2a) volgt een verdeling van het aantal unieke en gemeenchappelijke ecosysteemdiensten. Hun aantal verschilt sterk over de verschillende hoofdclusters maar ook tussen de cases zelf.
 
 ```{r fig-caseoverview2a}
-#| fig.cap: "Occurence of unique and common ecosystem services across the case studies"
+#| fig-cap: "Occurence of unique and common ecosystem services across the case studies"
 #| message: false
 tb_common <- data_ana |> 
   group_by(case_short, cluster_short, ess_common, ess_short, ess_unique) |>
@@ -285,9 +285,9 @@ In @fig-fig1 is de verdeling van de scores per gemeenschappelijke ecosysteemdien
 Over het algemeen worden de meeste ecosysteemdiensten als positief ervaran, toch is dit in de case `Dijle` en in mindere mate `Gelinden` minder uitgesproken met scores die heel vaak 0 of 1 zijn in plaats van 2 of 3 in andere gebieden.
 
 ```{r fig-fig1}
-#| fig.cap: "Distribution scores per case and ESD common"
-#| fig.width: 8
-#| fig.height: 11
+#| fig-cap: "Distribution scores per case and ESD common"
+#| fig-width: 8
+#| fig-height: 11
 
 fraction_data <- 
   data_ana |> 
@@ -314,7 +314,7 @@ ggplot(fraction_data, aes(x = ess_short, y = f_resp, fill = factor(f_score))) +
 In @fig-fig2 is de verdeling van de genormaliseerde scores per case en ESD common weergegeven. Op het eerste zicht is duidelijk dat jacht en gemotoriseerde recreatie over het algemeen niet gewenst zijn
 
 ```{r fig-fig2}
-#| fig.cap: "Distribution normalised scores per case and ESD common"
+#| fig-cap: "Distribution normalised scores per case and ESD common"
 
 data_avg |>
   #order by mean level
@@ -379,9 +379,9 @@ p3 <- data_avg |>
 Figuur @fig-plotdatasummary3 toont in 1 oogopslag welke ecosysteemdiensten gewenst zijn per case, en hoeveel consensus er is binnen een case voor die dienst.
 
 ```{r fig-plotdatasummary3}
-#| fig.cap: "Distribution normalised scores per case and ESD common"
-#| fig.width: 11
-#| fig.height: 4.7
+#| fig-cap: "Distribution normalised scores per case and ESD common"
+#| fig-width: 11
+#| fig-height: 4.7
 print(p3)
 
 ```
@@ -390,9 +390,9 @@ print(p3)
 Figuur @fig-fig3b toont deze informatie in een formaat om de algemene gewenstheid en consensus per ecosysteemdienst te kunnen zien.
 
 ```{r fig-fig3b}
-#| fig.cap: "Distribution normalised scores per case and ESD common"
-#| fig.width: 11
-#| fig.height: 11
+#| fig-cap: "Distribution normalised scores per case and ESD common"
+#| fig-width: 11
+#| fig-height: 11
 
 ggplot(data_avg |> 
          mutate(ess_short = reorder(ess_short, mean_score, mean)), aes(x = ess_short, y = mean_score, 
@@ -460,7 +460,7 @@ ess_scores |>
 ```
 
 ```{r fig-algemenegewenstheid1}
-#| fig.cap: "Distribution of average wishedness of ESS per case. On the left the number of ESS per case is shown"
+#| fig-cap: "Distribution of average wishedness of ESS per case. On the left the number of ESS per case is shown"
 ggplot(data_avg |>
          mutate(case = factor(case_short,
                               levels = rev(case_scores$case_short))) |>
@@ -481,9 +481,9 @@ ggplot(data_avg |>
 ```
 
 ```{r fig-algemenegewenstheid2}
-#| fig.cap: "Distribution of average wishedness of an ESS over the cases. On the left the number of cases per ESS is shown"
-#| fig.height: 7
-#| fig.width: 7
+#| fig-cap: "Distribution of average wishedness of an ESS over the cases. On the left the number of cases per ESS is shown"
+#| fig-height: 7
+#| fig-width: 7
 ggplot(data_avg |>
          mutate(ess_short = factor(ess_short,
                                    levels = rev(c(ess_scores$ess_short)))) |> 
@@ -504,7 +504,7 @@ ggplot(data_avg |>
 ```
 
 ```{r fig-consensus1a}
-#| fig.cap: "Concensus per ESS"
+#| fig-cap: "Concensus per ESS"
 
 levels_ess <- ess_scores |> 
   arrange(average_consensus) |> 
@@ -522,7 +522,7 @@ ggplot(data_avg |>
 ```
 
 ```{r fig-consensus1b}
-#| fig.cap: "Average variation per ESS"
+#| fig-cap: "Average variation per ESS"
 pd <- ess_scores |> 
   arrange(average_consensus) |> 
   mutate(ess_short = factor(ess_short, levels = ess_short))

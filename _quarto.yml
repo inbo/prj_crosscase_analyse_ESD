@@ -13,11 +13,9 @@ project:
 book:
   chapters:
     - index.qmd
-    - summary.qmd
-    - intro.qmd
     - data_verkenning.qmd
     - modellering_gemiddeld.qmd
-    #- modellering_cumulatief.qmd
+    - modellering_cumulatief.qmd
     - references.qmd
   downloads: pdf
   open-graph: true
@@ -27,7 +25,7 @@ book:
   navbar:
     left:
       - text: Cover
-        file: index.md
+        file: index.qmd
     right:
       - icon: mastodon
         href: https://mastodon.online/@inbo
@@ -42,6 +40,11 @@ book:
     pinned: true
 
 bibliography: references.bib
+
+nocite:
+  - "@R-Core-Team"
+  - "@buerkner2017"
+  - "Ruedin2023"
 
 format:
   flandersqmd-book-html:
