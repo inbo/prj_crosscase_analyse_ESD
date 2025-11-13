@@ -1,12 +1,10 @@
-
 # Cumulatief logistisch model
 
 ## Inleiding
 
+Het cumulatief logistische model is volgens mij het meest correcte model om de data te modelleren. Er worden geen aannames gedaan over de verdeling van de data. Er wordt berekend wat de cumulatieve kans is op een score. Dit betekent dat het model de kans berekent dat een ecosysteemdienst een bepaalde score of lager heeft, in plaats van de kans op een specifieke score te berekenen.
 
-Het cumulatief logistische model is volgens mij het meest correcte model om de data te modelleren. Er worden geen aannames gedaan over de verdeling van de data. Er wordt berekend wat de cumulatieve kans is op een score.
-Dit betekent dat het model de kans berekent dat een ecosysteemdienst een bepaalde score of lager heeft, in plaats van de kans op een specifieke score te berekenen.
-
+Net als bij het model met de gewogen gemiddeldes wordt met een random intercept op case gewerkt om zo rekening te houden met dat cases over de hele lijn hoger of lager kunnen scoren dan andere cases.
 
 
 ```{r cundateread}
@@ -51,7 +49,6 @@ model_cml_indiv <- readRDS("models/respondent_cumlogit_model.RDS")
 ```
 
 ## Resultaten cumulatief model
-
 
 ### volledig plot
 
@@ -140,8 +137,6 @@ ggplot(estimates_clm, aes(x = ess_short, y = estimate, fill = value)) +
 #ggsave("simplified_cumlogit_model_estimates.png", width = 7, height = 10)
 ```
 
-
-
 ```{r fig-simpcl_ran}
 #|fig-cap: "Random effect estimates of the cumulative logistic model, in logit scale."
 
@@ -162,7 +157,6 @@ ggplot(ranef_case, aes(x = case, y = Estimate, ymin = Q2.5, ymax = Q97.5)) +
   theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
 ```
 
-
 ### Vereenvoudigde plots
 
 ```{r fig-better_than_zero}
@@ -176,8 +170,6 @@ ggplot(pred12 |> mutate(est = 1 - `50%`, q025 = 1 - `97.5%`, q975 = 1 - `2.5%`),
   labs(x = "ESS", y = "Probability of score > 0", color = "ESS cluster")
 
 ```
-
-
 
 ```{r fig-better_than_zero_facets}
 #| fig-cap: "The estimated probability that the score is greater than zero (with facets)"
@@ -216,7 +208,6 @@ ggplot(pred14 |> mutate(est = 1 - `50%`, q025 = 1 - `97.5%`, q975 = 1 - `2.5%`),
     facet_wrap(~cluster_short, scales = "free_x", nrow = 2)
 
 ```
-
 
 ## Cumulatief logistisch model op de individuele responses
 
@@ -285,7 +276,6 @@ estimates_clm_ind <- fitted_summary_ind[,1,] |>
 
 ```
 
-
 ```{r fig-indiv_pred_plot}
 #|fig-cap: "Results of the cumulative logistics model using the cases with respondent level information, which is modelled."
 #|fig-width: 7
@@ -309,9 +299,6 @@ ggplot(estimates_clm_ind, aes(x = ess_short, y = estimate, fill = value)) +
 
 #ggsave("simplified_cumlogit_model_estimates.png", width = 7, height = 10)
 ```
-
-
-
 
 ## Hurdle model
 

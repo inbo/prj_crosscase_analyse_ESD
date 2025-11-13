@@ -55,18 +55,16 @@ model_indivmeans <- readRDS("models/respondent_weighted_means.RDS")
 
 ```
 
-## Analyses op dataset zelf
+## Analyses op basis van het gemiddelde
 
-### similariteitsprofiel op basis van gemiddeldes
+### similariteitsprofiel tusssen de cases en ecosysteemdiensten
 
 Het similariteitsprofiel is hier als volgt gedefinieerd:
 
-- Neem het gemiddelde per case per ess
--Normeer alle waarden door het gemiddelde over de cases respectievelijk ess heen af te trekken
-- Bereken een euclidische afstandsmatrix
-- Deel deze door de maximale gevonden afstand voor relatieve afstand
-- Doe 1 - relatieve afstand om de similariteit te vinden.
-
+-   Neem het gemiddelde per case per ess -Normeer alle waarden door het gemiddelde over de cases respectievelijk ess heen af te trekken
+-   Bereken een euclidische afstandsmatrix
+-   Deel deze door de maximale gevonden afstand voor relatieve afstand
+-   Doe `1 - relatieve afstand` om de similariteit te vinden.
 
 ```{r similaritydata}
 
@@ -105,6 +103,10 @@ pheatmap(case_similarity,
 
 ```
 
+Uit figuur @fig-similaritycase blijkt dat hoe ecosysteemdiensten gescoord worden voor redelijk veel cases vrij hoog is, en dan vooral voor alles in de Wijers.
+
+De case Dijle en Voeren blijken wel sterk van elkaar af te wijken in hoe ecosysteemdiensten worden geëvalueerd, en blijken zelf ook heel verschillend van de andere ecosysteemdiensten.
+
 ```{r fig-similarityess}
 #|fig-cap: "Similarity between ESS among case answers"
 pheatmap(ess_similarity,
@@ -112,10 +114,12 @@ pheatmap(ess_similarity,
          color = colorRampPalette(c("red", "white", "blue"))(100))
 ```
 
+Uit figuur @fig-similarityess blijken jacht en gemotoriseerde recreatie sterk te verschillen qua beoordeling dan de meeste andere ecosysteemdiensten, niet onlogisch omdat dit nu ook de 2 zijn die over het algemeen als negatief ervaren worden.
 
-```{r regionalnetworks}
-#|include: false
-#|eval: false
+Een analoge conclusie kqn getrokken worden uit figuur @fig-regionalnetworks, waar duidelijk is dat er heel weinig samenhang is tussen jacht en de rest, tussen gemotoriseerde recreatie en de rest en ook tussen dynamische recreatie en de rest.
+
+```{r fig-regionalnetworks}
+#| fig-cap: "Connectedness of the ecosystem services"
 library(igraph)
 library(ggraph)
 
@@ -139,6 +143,8 @@ ggraph(network, layout = "fr") +
   labs(title = "Regional Similarity Network")
 
 ```
+
+NMDS schaling in figuur @fig-nmds toont vergelijkhare informatie, waar hier ook de jacht en gemotoriseerde recreatie sterk verschillen vqn de rest. De dynamische recreatie is hier iets minder uitgesproken. Aan de andere kant van het spectrum heb je dan de levenskwaliteit, de iconische soorten en in mindere mate verbetering van vervuiling.
 
 
 ```{r fig-nmds}
@@ -210,28 +216,38 @@ data_consensus_ess <- data_work |>
 ```
 
 ```{r fig-consensus-detail}
+#| fig-cap: "Leik agreement between the ecosystem services per case"
+#| fig-height: 10
+#| fig-width: 7
 ggplot(data_consensus, aes(x = ess_short, y = consensus, color = cluster_short)) +
   geom_point() +
-  facet_wrap(~case_short) +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  facet_wrap(~case_short, ncol = 3) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1,
+                                   vjust = 0.5, size = 7)) +
   scale_color_manual(values = inbostyle_colors(14)) +
-  labs(x = "ESS common", y = "Consensus") 
+  labs(x = "ESS common", y = "Consensus") +
+  ylim(0,1) +
+  theme(legend.position = "bottom")
        
        
 ```
 
+Uit figuur @fig-consensus-detail blijkt dat de consensus over de beoordeling van de ecosysteemdiensten vaak vrij hoog ligt, maar dat er wel verschillen zijn tussen de cases, vooral in Voeren.
+
+Indien de consensus wordt uitgemiddeld over de cases heen zoals in figuur @fig-consensus-marginal, dan blijkt de consensus zich redelijk uit te middellen rond ongeveer 0.60 tussen de ecosysteemdiensten met de meeste overeenkomst voor biodiversiteit, en de minste overeenkomst rond drinkwater.
+
 ```{r fig-consensus-marginal}
+#| fig-cap: "Leik agreement between the ecosystem services over the cases"
 ggplot(data_consensus_ess,
        aes(x = ess_short, y = consensus, color = cluster_short)) +
   geom_point() +
   theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
   scale_color_manual(values = inbostyle_colors(8)) +
+  ylim(0,1) +
   labs(x = "ESS common", y = "Consensus")
 ```
 
-
 ## Modellen van het gemiddelde zonder respondent-level informatie
-
 
 We gaan een aantal versimpelde modellen maken, waarbij we de respondent-level informatie negeren en alleen werken met de case-level informatie. Dit is handig voor een eerste verkenning van de data en om te zien of er duidelijke patronen zijn. Voor de beperkte aantal cases met wel individuele data kunnen we nog eens een aparte analyse doen om te zien of er zaken verschillend uitkomen.
 
@@ -288,7 +304,7 @@ ggplot(data.frame(res = r, fit = f), aes(x = fit, y = res)) +
   labs(title = "Residuals vs Fitted Values", x = "Fitted Values", y = "Residuals")
 ```
 
-Figuur @fig-swm_pred  toont de geschatte effecten van de ecosysteemdiensten. Enkel gemotoriseerde recreatie wordt als ongewenst gezien, alsook jacht. De andere ecosysteemdiensten worden als gewenst gezien. Vooral biodiversiteit, levenskwaliteit en waterhuishouding worden heel positief ingeschat.
+Figuur @fig-swm_pred toont de geschatte effecten van de ecosysteemdiensten. Enkel gemotoriseerde recreatie wordt als ongewenst gezien, alsook jacht. De andere ecosysteemdiensten worden als gewenst gezien. Vooral biodiversiteit, levenskwaliteit en waterhuishouding worden heel positief ingeschat.
 
 Recreatie en toerisme worden heel variabel ingeschat, van heel negatief zoals gemotoriseerde recreatie tot heel positief zoals de mogelijkheid tot spelen en zachte recreatie zoals wandelen.
 
@@ -319,8 +335,6 @@ ggplot(plot_data, aes(x = ess_short, y = mean, color = cluster_short)) +
 
 ```
 
-
-
 ```{r fig-swm_predwithconsensus}
 #|fig-cap: "Estimated Effects of ESS Common colored en resized with Agreement"
 #|fig-height: 7
@@ -344,6 +358,12 @@ ggplot(pred_with_css, aes(x = ess_short, y = mean, color = consensus)) +
   scale_size_continuous(range = c(2, 6))
 ```
 
+Figuur @fig-swm_predwithconsensus toont dezelfde informatie, maar nu ook met toevoeging van een maat van consensus. Gemotoriseerde recreatie wordt als negatief aanzien en er is een grote consensus over, jacht minder negatief maar ook met minder consensus. Waterkwaliteit, iconische soorten en biodiversiteit scoren het hoogst en hebben een hoge consensus.
+
+Er dient wel opgemerkt te worden, dat consensus ook we een stuk afhangt van de gemiddelde score. Om een extreme score te hebben, positief of negatief, is er veel consensus nodig, anders wordt het gemiddelde naar het midden getrokken.
+
+
+
 Hoe ecosysteemdiensten scoren zijn niet voor iedere case hetzelfde. We kunnen de random effecten van de cases bekijken om te zien hoe de geschatte effecten per case verschillen van het gemiddelde effect.
 
 De hoofdreden hier is waarschijnlijk dat niet alle ecosysteemdiensten even zichtbaar aanwezig zijn, of minder belangrijk zijn doordat de case (regio) sowieso al meerdere ecosysteemdiensten heeft in nabijgelegen gebieden.
@@ -363,9 +383,7 @@ ggplot(ranef_case, aes(x = case, y = Estimate, ymin = Q2.5, ymax = Q97.5)) +
 
 ```
 
-
 ## Gewogen gemiddelde met individuele respondentinformatie op deel van data
-
 
 ### Modelresultaten
 
@@ -402,7 +420,6 @@ knitr::kable(bind_rows(tabel_ranefi, tabel_fixefi),
 
 De vergelijking in figuur @fig-compare-estimates is een beetje jonagolds en pink lady appels vergelijken. Het simpele model is geschat over alle cases heen, zonder rekening te houden met of de antwoorden van dezelfde respondent komen. Het individuele model daarentegen gebruikt enkel de cases waarvoor individuele schattingen aanwezig zijn, dus alles uit De Wijers en Gelinden verdwijnen - de helft van de casses.
 
-
 Ondanks de verschillende modellen en gebruikte datasets liggen de geschatte beoordelingen van de ecosysteemdiensten heel dicht bij elkaar op enkele uitzonderingen na, namelijk `plant gathering`, `hunting`, `water quality` en `quality of living`. De ecosysteemdienst `bio materials` komt niet voor in de cases met individuele respondentinformatie.
 
 De betrouwbaarheidsintervallen zijn een stuk breder voor de individuele data, maar de hoofdreden hiervoor is gewoon dat er heel wat minder data gebruikt is voor de schattingen. Sigma verschilt sterk tussen de methoden, maar dat is omdat in het individuele model sigma opgesplitst is in sigma en sd_nested.
@@ -434,4 +451,3 @@ ggplot(
     color = "Model") 
 
 ```
-

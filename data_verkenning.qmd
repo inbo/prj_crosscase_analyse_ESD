@@ -1,21 +1,5 @@
 <!--Let op: Figuren en tabellen in het Engels!! -->
 
-```{=html}
-<!--
-vragen aan Francis:
-
-* Hoe food&feed beter categoriseren: zelf nakijken
-* ok om in data cluster voor kluisbos de NA te vervangen door water cycle related services?
-* ok om gemiddelde unieke score te gebruiken voor de common score?
-
-to do:
-* vragen zijn nu puur op data beantwoord: modelmatig
-* omzetten naar een model (eventueel hurdle model zoals in thesis)
-* afronding aanpassen naar mail
-* nakijken clustering vergelijken met definities in Data (zelfde excel file)
--->
-```
-
 # Data verkenning
 
 ```{r setup}
@@ -61,24 +45,29 @@ n_ess <- length(unique(data_ana$ess_short))
 
 ### Hoofdlijnen
 
-Er zijn 14 gebieden waarin er aan verschillende personen gevraagd werd om verschillende ecosysteemdiensten te scoren van ongewenst tot zeer gewenst. Deze 14 gebieden worden in de analyse gerefereerd als `cases (case_short)`. De personen worden gerefereerd als `respondenten`.
+Er zijn `r length(unique(data_ana$case_short))` gebieden waarin er aan verschillende personen gevraagd werd om verschillende ecosysteemdiensten te scoren van ongewenst tot zeer gewenst. Deze 14 gebieden worden in de analyse gerefereerd als `cases (case_short)`. De personen worden gerefereerd als `respondenten`.
 
 ### Terminologie
 
-In ieder gebied werden verschillende ecosysteemdiensten bevraagd, sommige overlappen, andere hebben een heel andere naam voor hetzelfde en nog andere zijn opgesplitst in veel kleinere ecosysteemdiensten. De bevraagde ecosysteemdiensten worden `unieke ecosysteemdiensten (ess_unique)` genoemd.
+In ieder gebied werden verschillende ecosysteemdiensten bevraagd, sommige overlappen, andere hebben een heel andere naam voor hetzelfde en nog andere zijn opgesplitst in veel kleinere ecosysteemdiensten. De `r length(unique(data_ana$ess_unique)) ` bevraagde ecosysteemdiensten worden `unieke ecosysteemdiensten (ess_unique)` genoemd.
 
-Deze worden geaggregeerd in `gemeenschappelijke ecosysteemdiensten (ess_common, ess_short)`, die in de tekst ook gewoon als `ecosysteemdiensten` benoemd worden.
+Deze worden geaggregeerd tot `r length(unique(data_ana$ess_short))` gemeenschappelijke ecosysteemdiensten `(ess_common, ess_short)`, die in de tekst ook gewoon als `ecosysteemdiensten` benoemd worden.
 
-Deze ecosysteemdiensten worden dan nog eens verder samengevoegd in `ecosysteemdiensten clusters (cluster_short)` of kortbenoemd `clusters`.
+Deze ecosysteemdiensten worden dan nog eens verder samengevoegd in `r length(unique(data_ana$cluster_short))` ecosysteemdiensten clusters (cluster_short)` of kortbenoemd `clusters`.
+
+
+Spijtig genoeg komen de `ess_common` niet in alle cases voor, wat een grondige analyse bemoeilijkt.
+
 
 In dit verkennend hoofdstuk wordt vaak met een gemiddelde score gewerkt over cases of ecosysteemdiensten. Dit is gewoon het rekenkundig gemiddelde over de scores heen.
 
-De consensus wordt berekend als 
+In de volgende hoofdstukken wordt met een gewogen gemiddelde en een cumulatieve verdeling gewerkt om te modelleren.
+
+Ik gebruik in de tekst ook consensus. De consensus wordt berekend als
 
 $$
 1 - \frac{SD(score)}{2}
-$$
-, waarbij de deling door 2 gewoon een normalisering is zodat de consensus altijd tussen 0 en 1 ligt. De maximaal mogelijke standaardeviatie is immers ongeveer 2 in een scoringssysteem van -1 tot 3. In de analysehoofdstukken worden andere maten van consensus gebruikt die ook rekening houden met het ordinale karakter van de scores.
+$$ , waarbij de deling door 2 gewoon een normalisering is zodat de consensus altijd tussen 0 en 1 ligt. De maximaal mogelijke standaardeviatie is immers ongeveer 2 in een scoringssysteem van -1 tot 3. In de analysehoofdstukken worden andere maten van consensus gebruikt die ook rekening houden met het ordinale karakter van de scores.
 
 ### Beschrijving
 
@@ -103,17 +92,11 @@ Om naar een ordinaal scoringssysteem te komen is de originele score `score_origi
 -   1.2 en 1.5 en (1.8) -\> 2\
 -   2.25 en 2.4 -\> 3
 
-Er wordt ook een kolom f_score gemaakt die een ordinale factor is van de score, met niveaus van 1 tot 5 (dus score + 2) zodat deze gebruikt kan worden in de ordinale analyse.
+Er wordt ook een kolom f_score gemaakt die een ordinale factor is van de score, met niveaus van 1 tot 5 (dus score + 2) zodat deze gebruikt kan worden in een ordinale analyse zoals een cumulatief logistisch model.
 
 ### Beperkingen in de dataset
 
-In de data voor de cases "Gelinden" en "De Wijer" - deze laatste omvat 6 cases - is er geen link tussen respondent en antwoord, dus het is niet mogelijk een respondenteffect in rekening te brengen voor deze cases. Deze link zal dan ook niet gebruikt worden bij de analyse over de cases heen.
-
-Doordat er heel veel unieke ecosysteemdiensten zijn (`r nrow(data_ana |> select(ess_cluster, ess_common, ess_unique) |> distinct())`), die verschillen tussen de verschillende cases, worden deze herleid tot een gemeenschappelijk niveau `ess_common` met `r nrow(data_ana |> select(ess_cluster, ess_common) |> distinct())` verschillende mogelijkheden. Elk van deze zijn op zich nog samengevoegd in ecosysteemdienstclusters (`r nrow(data_ana |> select(ess_cluster) |> distinct())`).
-
-Spijtig genoeg komen de `ess_common` niet in alle cases voor, wat een grondige analyse bemoeilijkt.
-
-In de analyse zal `ess_short` gebruikt worden, wat niet meer is dan een verkorte naam van `ess_common` alsook `case-short` als verkorte naam voor `case` 
+In de data voor de cases "Gelinden" en "De Wijer" - deze laatste omvat 6 cases - is er geen link tussen respondent en antwoord, dus het is niet mogelijk een respondenteffect in rekening te brengen voor deze cases. Deze link zal dan ook niet gebruikt worden bij de analyse over de cases heen, al zal wel eens een analyse gebeuren voor deze cases apart.
 
 
 ### Data onder dezelfde noemer brengen
@@ -140,6 +123,7 @@ Hieronder volgt een overzicht van namen en afkortingen die gebruikt worden in de
 Er is een groot verschil in aantal respondenten per case, en ook de verschillende bevraagde ecosysteemdiensten verschillen sterk van case tot case, zelfs al worden ze geaggregeerd tot `ess_common`.
 
 ```{r tbl-defcases}
+#| tbl-cap: "Overzicht van de verschillende cases met hun aantal respondenten en beantwoorde ecosysteemdiensten"
 n_respondents <- data_ana |> 
   group_by(case, case_short, ess_unique, ess_common, ess_short) |>
   summarise(respondents = n(), .groups = "drop")
@@ -161,24 +145,39 @@ tb_cases_tab <- tb_cases |>
   distinct() |> 
   arrange(case)
 
-DT::datatable(tb_cases_tab,
-              colnames = c("Case",
-                           "Short name",
-                           "Number of respondents",
-                           "Number of Unique ESS",
-                           "Number of common ESS"),
-              options = list(pageLength = 15,
-                             autoWidth = TRUE,
-                             dom = "t"),
-              rownames = FALSE,
-              caption= "Overview of cases and number of respondents")
+# Define your column names once
+my_col_names <- c("Case",
+                  "Short name",
+                  "Number of respondents",
+                  "Number of Unique ESS",
+                  "Number of common ESS")
+
+if (knitr::is_html_output()) {
+  # --- This is your code for HTML ---
+  DT::datatable(tb_cases_tab,
+                colnames = my_col_names,
+                options = list(pageLength = 15,
+                               autoWidth = TRUE,
+                               dom = "t"),
+                rownames = FALSE,
+                caption = "Overview of cases and number of respondents")
+
+} else {
+  # --- This is the fallback for PDF ---
+  knitr::kable(tb_cases_tab,
+               col.names = my_col_names,
+               rownames = FALSE,
+               caption = "Overview of cases and number of respondents",
+               booktabs = TRUE)
+}
+
 
 ```
 
 Een volledig overzicht van alle "gemeenschappelijke" ecosysteemdiensten vind je in tabel @tbl-defess alsook in welke gebieden (cases) die bevraagd zijn.
 
 ```{r tbl-defess}
-
+#| tbl-cap: "Definitie van de verschillende ecosysteemdiensten en hoe die geaggregeerd worden tot gemeenschappelijke ecosysteemdiensten en ecosysteemdienstclusters."
 tb_ess <- data_ana |> 
   group_by(cluster_short, ess_common, ess_short) |> 
   summarise(n_unique_ess = n_distinct(ess_unique), 
@@ -186,19 +185,31 @@ tb_ess <- data_ana |>
             cases = paste(unique(case_short), collapse = ", "),
             .groups = "drop")
 
-DT::datatable(tb_ess,
-              colnames = c("ESS cluster", "ESS common",
+my_colnames = c("ESS cluster", "ESS common",
                            "ESS short",
                            "Nr of ESS combined", 
                            "Nr of cases",
-                           "Cases"),
-              options(list(pageLength = 36,
-                           autoWidth = TRUE,
-                           dom = "t")),
-              rownames = FALSE,
-              caption = "Overview of ESS categories",
-)
+                           "Cases")
 
+if (knitr::is_html_output()) {
+  # --- HTML Output (Interactive) ---
+  DT::datatable(tb_ess,
+                colnames = my_colnames,
+                # Note: 'options =' is the correct syntax
+                options = list(pageLength = 36, 
+                               autoWidth = TRUE,
+                               dom = "t"),
+                rownames = FALSE,
+                caption = "Overview of ESS categories")
+  
+} else {
+  # --- PDF Output (Static) ---
+  knitr::kable(tb_ess,
+               col.names = my_colnames,
+               rownames = FALSE,
+               caption = "Overview of ESS categories",
+               booktabs = TRUE)
+}
 ```
 
 ### Verdeling ecosysteemdiensten
@@ -329,7 +340,6 @@ data_avg |>
 
 ```
 
-
 ```{r fig-fig3data}
 
 # Option 1: Heatmap with consensus indicated by transparency/alpha
@@ -384,7 +394,6 @@ print(p3)
 
 ```
 
-
 Figuur @fig-fig3b toont deze informatie in een formaat om de algemene gewenstheid en consensus per ecosysteemdienst te kunnen zien.
 
 ```{r fig-fig3b}
@@ -431,7 +440,7 @@ case_scores <- data_avg |>
 
 case_scores |>
   knitr::kable(
-    caption = "Average wishedness of ecosystem services per case",
+    caption = "Average desire of ecosystem services per case",
     col.names = c("case",
                   "different ESS",
                   "mean score",
@@ -449,7 +458,7 @@ ess_scores <- data_avg |>
   arrange(desc(wishedness)) 
 
 ess_scores |>
-  knitr::kable(caption = "Average wishedness of ecosystem services",
+  knitr::kable(caption = "Average desire of ecosystem services",
                col.names = c("ESS",
                              "different cases",
                              "mean score",
@@ -593,6 +602,7 @@ ess_table
 
 ```
 
+```{=html}
 <!--
 ## Gemaakte keuzes
 
@@ -605,3 +615,4 @@ Heeft het zin de clusters Food & feed production and Fibre & Bioenergy als apart
 
 Ook analyse van samenhang voor waar dat mogelijk is.
 --->
+```
