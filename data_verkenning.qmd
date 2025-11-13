@@ -39,7 +39,6 @@ conflicted::conflict_prefer_all(c("dplyr"), quiet = TRUE)
 #| message: false
 #| cache: true
 data_ana    <- readRDS(here("interim", "data_ana.rds"))
-data_common    <- readRDS(here("interim", "data_common.rds"))
 data_avg <- readRDS(here("interim", "data_avg.rds"))
 data_avg_ess <- readRDS(here("interim", "data_avg_ess.rds"))
 data_avg_case <- readRDS(here("interim", "data_avg_case.rds"))
@@ -47,7 +46,6 @@ data_avg_case <- readRDS(here("interim", "data_avg_case.rds"))
 
 #Let op, houdt geen rekening met common maar unieke esd
 data_smry <- data_ana |>
-  group_by(case_short, ess_unique, ess_short, f_score) |>
   summarise(n = n(),
             .groups = "drop")
 
