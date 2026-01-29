@@ -6,7 +6,6 @@ Het cumulatief logistische model is volgens mij het meest correcte model om de d
 
 Net als bij het model met de gewogen gemiddeldes wordt met een random intercept op case gewerkt om zo rekening te houden met dat cases over de hele lijn hoger of lager kunnen scoren dan andere cases.
 
-
 ```{r cundateread}
 #| message: false
 #| results: "hide"

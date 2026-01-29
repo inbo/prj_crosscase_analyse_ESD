@@ -6,3 +6,8 @@
 /.quarto/
 interim/
 models/
+output/
+*.zip
+*_files/
+*._cache/
+obsolete/

@@ -49,7 +49,7 @@ nocite:
 format:
   flandersqmd-book-html:
     code-fold: true
-  flandersqmd-book-pdf: default
+  #flandersqmd-book-pdf: default
 
 flandersqmd:
   entity: INBO

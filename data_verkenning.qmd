@@ -49,15 +49,13 @@ Er zijn `r length(unique(data_ana$case_short))` gebieden waarin er aan verschill
 
 ### Terminologie
 
-In ieder gebied werden verschillende ecosysteemdiensten bevraagd, sommige overlappen, andere hebben een heel andere naam voor hetzelfde en nog andere zijn opgesplitst in veel kleinere ecosysteemdiensten. De `r length(unique(data_ana$ess_unique)) ` bevraagde ecosysteemdiensten worden `unieke ecosysteemdiensten (ess_unique)` genoemd.
+In ieder gebied werden verschillende ecosysteemdiensten bevraagd, sommige overlappen, andere hebben een heel andere naam voor hetzelfde en nog andere zijn opgesplitst in veel kleinere ecosysteemdiensten. De `r length(unique(data_ana$ess_unique))` bevraagde ecosysteemdiensten worden `unieke ecosysteemdiensten (ess_unique)` genoemd.
 
 Deze worden geaggregeerd tot `r length(unique(data_ana$ess_short))` gemeenschappelijke ecosysteemdiensten `(ess_common, ess_short)`, die in de tekst ook gewoon als `ecosysteemdiensten` benoemd worden.
 
-Deze ecosysteemdiensten worden dan nog eens verder samengevoegd in `r length(unique(data_ana$cluster_short))` ecosysteemdiensten clusters (cluster_short)` of kortbenoemd `clusters`.
-
+Deze ecosysteemdiensten worden dan nog eens verder samengevoegd in `r length(unique(data_ana$cluster_short))` ecosysteemdiensten clusters (cluster_short)`of kortbenoemd`clusters\`.
 
 Spijtig genoeg komen de `ess_common` niet in alle cases voor, wat een grondige analyse bemoeilijkt.
-
 
 In dit verkennend hoofdstuk wordt vaak met een gemiddelde score gewerkt over cases of ecosysteemdiensten. Dit is gewoon het rekenkundig gemiddelde over de scores heen.
 
@@ -97,7 +95,6 @@ Er wordt ook een kolom f_score gemaakt die een ordinale factor is van de score, 
 ### Beperkingen in de dataset
 
 In de data voor de cases "Gelinden" en "De Wijer" - deze laatste omvat 6 cases - is er geen link tussen respondent en antwoord, dus het is niet mogelijk een respondenteffect in rekening te brengen voor deze cases. Deze link zal dan ook niet gebruikt worden bij de analyse over de cases heen, al zal wel eens een analyse gebeuren voor deze cases apart.
-
 
 ### Data onder dezelfde noemer brengen
 

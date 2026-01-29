@@ -4,7 +4,7 @@ library(tidyverse)
 library(readxl)
 source(file.path("scripts", "_hulpfuncties.R"))
 xls_gdrive_path <- file.path(
-  "G:", "Mijn Drive", "PROJECTEN",
+  "G:", "Mijn Drive", "PROJECTEN_BMK",
   "prj_crosscase_analyse_ESD"
 )
 

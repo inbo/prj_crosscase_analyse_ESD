@@ -146,7 +146,6 @@ ggraph(network, layout = "fr") +
 
 NMDS schaling in figuur @fig-nmds toont vergelijkhare informatie, waar hier ook de jacht en gemotoriseerde recreatie sterk verschillen vqn de rest. De dynamische recreatie is hier iets minder uitgesproken. Aan de andere kant van het spectrum heb je dan de levenskwaliteit, de iconische soorten en in mindere mate verbetering van vervuiling.
 
-
 ```{r fig-nmds}
 #|fig-cap: "Similarity in answers on ESS - MDS Plot"
 mds <- cmdscale(1 - ess_similarity, k = 2)
@@ -361,8 +360,6 @@ ggplot(pred_with_css, aes(x = ess_short, y = mean, color = consensus)) +
 Figuur @fig-swm_predwithconsensus toont dezelfde informatie, maar nu ook met toevoeging van een maat van consensus. Gemotoriseerde recreatie wordt als negatief aanzien en er is een grote consensus over, jacht minder negatief maar ook met minder consensus. Waterkwaliteit, iconische soorten en biodiversiteit scoren het hoogst en hebben een hoge consensus.
 
 Er dient wel opgemerkt te worden, dat consensus ook we een stuk afhangt van de gemiddelde score. Om een extreme score te hebben, positief of negatief, is er veel consensus nodig, anders wordt het gemiddelde naar het midden getrokken.
-
-
 
 Hoe ecosysteemdiensten scoren zijn niet voor iedere case hetzelfde. We kunnen de random effecten van de cases bekijken om te zien hoe de geschatte effecten per case verschillen van het gemiddelde effect.
 
