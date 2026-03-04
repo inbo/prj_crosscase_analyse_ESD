@@ -34,3 +34,11 @@ po/*~
 # RStudio Connect folder
 rsconnect/
 prj_crosscase_analyse_ESD.Rproj
+.quarto
+*.zip
+data
+data_verkenning_files
+interim
+modellering_cumulatief_files
+models
+output
