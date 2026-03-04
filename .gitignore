@@ -2,7 +2,6 @@
 .Rhistory
 .RData
 .Ruserdata
-
 /.quarto/
 interim/
 models/
@@ -11,3 +10,5 @@ output/
 *_files/
 *._cache/
 obsolete/
+data_verkenning_cache
+modellering_cumulatief_cache
