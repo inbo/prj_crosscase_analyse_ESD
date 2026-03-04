@@ -4,7 +4,8 @@
 
 ```{r dataread}
 #| message: false
-#| results: "hide"
+#| warning: false
+#| results: hide
 library(tidyverse)
 library(brms)
 library(agrmt)
@@ -14,6 +15,8 @@ library(dplyr)
 library(emmeans)
 library(corrplot)
 library(INBOtheme)
+library(plotly)
+
 
 conflicted::conflict_prefer_all(c("dplyr"), quiet = TRUE)
 conflicted::conflict_prefer_all(c("purrr"), quiet = TRUE)
@@ -233,6 +236,7 @@ ggplot(data_consensus, aes(x = ess_short, y = consensus, color = cluster_short))
 
 Uit figuur @fig-consensus-detail blijkt dat de consensus over de beoordeling van de ecosysteemdiensten vaak vrij hoog ligt, maar dat er wel verschillen zijn tussen de cases, vooral in Voeren.
 
+
 Indien de consensus wordt uitgemiddeld over de cases heen zoals in figuur @fig-consensus-marginal, dan blijkt de consensus zich redelijk uit te middellen rond ongeveer 0.60 tussen de ecosysteemdiensten met de meeste overeenkomst voor biodiversiteit, en de minste overeenkomst rond drinkwater.
 
 ```{r fig-consensus-marginal}
@@ -360,6 +364,149 @@ ggplot(pred_with_css, aes(x = ess_short, y = mean, color = consensus)) +
 Figuur @fig-swm_predwithconsensus toont dezelfde informatie, maar nu ook met toevoeging van een maat van consensus. Gemotoriseerde recreatie wordt als negatief aanzien en er is een grote consensus over, jacht minder negatief maar ook met minder consensus. Waterkwaliteit, iconische soorten en biodiversiteit scoren het hoogst en hebben een hoge consensus.
 
 Er dient wel opgemerkt te worden, dat consensus ook we een stuk afhangt van de gemiddelde score. Om een extreme score te hebben, positief of negatief, is er veel consensus nodig, anders wordt het gemiddelde naar het midden getrokken.
+
+
+Alternatieve voorstellingswijze:
+
+```{r fig-consensus-desir}
+#| fig-cap: "Consensus plotted against desirability"
+
+p <- ggplot(data = pred_with_css, 
+            aes(x = mean,
+                y = consensus, 
+                text = ess_short)) +
+  geom_point(aes(color = cluster_short)) 
+plotly::ggplotly(p, tooltip = "text")
+
+```
+
+
+```{r fig-desir-ord1}
+#| fig-cap: "Estimated effect and agreement per ESS ordered by mean effect"
+
+ggplot(pred_with_css, aes(x = reorder(ess_short, mean), y = mean, color = consensus)) +
+  geom_point(aes(size = consensus), alpha = 1) +
+  geom_errorbar(aes(ymin = lcl, ymax = ucl)) +
+  coord_flip() +
+  labs(title = NULL,
+       x = "ESS Common",
+       y = "Estimated Effect",
+       color = "Agreement", 
+       size = "Agreement") +
+  #scale_color_manual(values = inbo_palette) + 
+  scale_color_gradient(low = "cyan", high = "blue") +
+  scale_size_continuous(range = c(2, 6))
+
+```
+
+
+```{r fig-desir-ord2}
+#| fig-cap: "Estimated effect and agreement per ESS ordered by consensus"
+
+library(ggplot2)
+
+ggplot(pred_with_css, aes(x = reorder(ess_short, consensus), y = consensus, color = mean)) +
+  geom_point(aes(size = mean), alpha = 1) +
+  coord_flip() +
+  labs(title = NULL,
+       x = "ESS Common",
+       y = "Agreement",
+       color = "Estimated score", 
+       size = "Estimated score") +
+  scale_color_gradient(low = "cyan", high = "blue") +
+  scale_size_continuous(range = c(2, 4))
+
+```
+
+```{r fig-multiple-axes-ordermean}
+#| fig-cap: "Estimated effect and agreement per ESS common"
+
+library(ggplot2)
+library(dplyr)
+
+# 1. Define the desired ranges
+prim_min <- -0.4; prim_max <- 2.6
+sec_min  <- 0.3;  sec_max  <- 0.8
+
+# 2. Calculate the scaling math (Linear Transformation: y = mx + c)
+# This maps the secondary range onto the primary range
+slope <- (prim_max - prim_min) / (sec_max - sec_min)
+intercept <- prim_min - slope * sec_min
+
+plotdata <- pred_with_css |> 
+  mutate(ess_short = reorder(ess_short, mean))
+
+ggplot(plotdata, aes(x = ess_short, group = 1)) +
+  # Primary Line (Mean)
+  geom_line(aes(y = mean, color = "Estimated Score"), linewidth = 1) +
+  
+  # Secondary Line (Consensus) - Transformed to fit primary scale
+  geom_line(aes(y = consensus * slope + intercept, color = "Agreement"), linewidth = 1) +
+  
+  scale_y_continuous(
+    name = "Estimated Score",
+    limits = c(prim_min, prim_max),
+    sec.axis = sec_axis(
+      ~ (. - intercept) / slope, 
+      name = "Agreement",
+      breaks = seq(0.3, 0.8, by = 0.1)
+    )
+  ) +
+  
+  # Formatting
+  labs(x = "ESS Common", color = "Metric") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
+    legend.position = "top"
+  )
+```
+
+
+
+```{r fig-multiple-axes-orderagreement}
+#| fig-cap: "Estimated effect and agreement per ESS common (Ordered by Agreement)"
+
+library(ggplot2)
+library(dplyr)
+
+# 1. Define the desired ranges
+prim_min <- -0.4; prim_max <- 2.6
+sec_min  <- 0.3;  sec_max  <- 0.8
+
+# 2. Calculate the scaling math (Linear Transformation: y = mx + c)
+slope <- (prim_max - prim_min) / (sec_max - sec_min)
+intercept <- prim_min - slope * sec_min
+
+# Update reorder to use 'consensus' instead of 'mean'
+plotdata <- pred_with_css |> 
+  mutate(ess_short = reorder(ess_short, consensus))
+
+ggplot(plotdata, aes(x = ess_short, group = 1)) +
+  # Primary Line (Mean)
+  geom_line(aes(y = mean, color = "Estimated Score"), linewidth = 1) +
+  
+  # Secondary Line (Consensus)
+  geom_line(aes(y = consensus * slope + intercept, color = "Agreement"), linewidth = 1) +
+  
+  scale_y_continuous(
+    name = "Estimated Score",
+    limits = c(prim_min, prim_max),
+    sec.axis = sec_axis(
+      ~ (. - intercept) / slope, 
+      name = "Agreement",
+      breaks = seq(0.3, 0.8, by = 0.1)
+    )
+  ) +
+  
+  # Formatting
+  labs(x = "ESS Common", color = "Metric") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
+    legend.position = "top"
+  )
+```
 
 Hoe ecosysteemdiensten scoren zijn niet voor iedere case hetzelfde. We kunnen de random effecten van de cases bekijken om te zien hoe de geschatte effecten per case verschillen van het gemiddelde effect.
 

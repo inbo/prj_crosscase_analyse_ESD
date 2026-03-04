@@ -1,20 +1,15 @@
-
-
 # Abstract {.unnumbered}
 
 Dit document voert een analyse uit op de beoordeling van de ecosyteemdiensten doormiddel van een bevraging bij stakeholders in 14 verschillende cases.
 
 Er worden heel wat ecosysteemdiensten bevraagd, maar om de analyse mogelijk te maken zijn deze ingedeeld in 36 ecosysteemdiensten.
 
-De analyse is niet ideaal omdat niet alle ecosyteemdiensten in alle cases voorkomen, en het er groot aantal zijn.
-Toch zal op basis van de thesis van Ilja Welvaert hier een analyse uitgevoerd worden op 2 verschillende manieren:
+De analyse is niet ideaal omdat niet alle ecosyteemdiensten in alle cases voorkomen, en het er groot aantal zijn. Toch zal op basis van de thesis van Ilja Welvaert hier een analyse uitgevoerd worden op 2 verschillende manieren:
 
-- Modelleren van de gemiddelde scores
-- Modelleren van de scorecategorieën via een cumulatief logistisch model
+-   Modelleren van de gemiddelde scores
+-   Modelleren van de scorecategorieën via een cumulatief logistisch model
 
-Als basismodel wordt een random intercept model gebruikt, waarbij de 14 cases als random intercept fungeren.
-Het respondent-leven wordt genegeerd omdat die maar voor de helft van de data gekend zijn.
-Niettemin is de analyse ook nog eens gelopen voor enkel de cases met een respondent-level effect.
+Als basismodel wordt een random intercept model gebruikt, waarbij de 14 cases als random intercept fungeren. Het respondent-leven wordt genegeerd omdat die maar voor de helft van de data gekend zijn. Niettemin is de analyse ook nog eens gelopen voor enkel de cases met een respondent-level effect.
 
 Naast het modelleren van de score wordt ook gekeken naar de consensus tussen de respondenten over de verschillende ecosysteemdiensten.
 
